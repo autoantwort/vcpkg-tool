@@ -4,7 +4,6 @@
 #include <vcpkg/base/hash.h>
 #include <vcpkg/base/jsonreader.h>
 #include <vcpkg/base/system.debug.h>
-#include <vcpkg/base/system.process.h>
 #include <vcpkg/base/util.h>
 
 #include <vcpkg/binarycaching.h>
@@ -709,6 +708,42 @@ namespace vcpkg
         {
             return {std::move(output.output), expected_right_tag};
         }
+    }
+
+    ExitCodeAndOutput VcpkgPaths::git_commit(const path& dot_git_dir,
+                                             std::vector<path>&& files,
+                                             const std::string& message,
+                                             bool amend) const
+    {
+        for (auto& path : files)
+            path = get_filesystem().relative(VCPKG_LINE_INFO, path, dot_git_dir.parent_path());
+        Command add_cmd = git_cmd_builder(dot_git_dir, dot_git_dir.parent_path())
+                              .string_arg("add")
+                              .string_arg("--force")
+                              .string_arg("--");
+        for (const auto& path : files)
+            add_cmd.path_arg(path);
+        const auto result = cmd_execute_and_capture_output(add_cmd);
+        if (result.exit_code != 0) return result;
+
+        Command commit_cmd = git_cmd_builder(dot_git_dir, dot_git_dir.parent_path()).string_arg("commit");
+        if (amend)
+        {
+            commit_cmd.string_arg("--amend");
+        }
+        if (!message.empty())
+        {
+            commit_cmd.string_arg("-m").string_arg(message);
+        }
+        else if (amend)
+        {
+            commit_cmd.string_arg("--no-edit");
+        }
+        commit_cmd.string_arg("--");
+        for (const auto& path : files)
+            commit_cmd.path_arg(path);
+
+        return cmd_execute_and_capture_output(commit_cmd);
     }
 
     ExpectedS<std::map<std::string, std::string, std::less<>>> VcpkgPaths::git_get_port_treeish_map(
