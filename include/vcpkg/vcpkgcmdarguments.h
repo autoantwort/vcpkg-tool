@@ -104,11 +104,12 @@ namespace vcpkg
         bool compiler_tracking;
         bool binary_caching;
         bool versions;
+        bool manifests;
     };
 
     struct VcpkgCmdArguments
     {
-        static VcpkgCmdArguments create_from_command_line(const Files::Filesystem& fs,
+        static VcpkgCmdArguments create_from_command_line(const Filesystem& fs,
                                                           const int argc,
                                                           const CommandLineCharType* const* const argv);
         static VcpkgCmdArguments create_from_arg_sequence(const std::string* arg_begin, const std::string* arg_end);
@@ -180,6 +181,9 @@ namespace vcpkg
         constexpr static StringLiteral JSON_SWITCH = "x-json";
         Optional<bool> json = nullopt;
 
+        constexpr static StringLiteral ASSET_SOURCES_ENV = "X_VCPKG_ASSET_SOURCES";
+        Optional<std::string> asset_sources_template;
+
         // feature flags
         constexpr static StringLiteral FEATURE_FLAGS_ENV = "VCPKG_FEATURE_FLAGS";
         constexpr static StringLiteral FEATURE_FLAGS_ARG = "feature-flags";
@@ -198,12 +202,13 @@ namespace vcpkg
         constexpr static StringLiteral VERSIONS_FEATURE = "versions";
         Optional<bool> versions_feature = nullopt;
 
-        constexpr static StringLiteral RECURSIVE_DATA_ENV = "VCPKG_X_RECURSIVE_DATA";
+        constexpr static StringLiteral RECURSIVE_DATA_ENV = "X_VCPKG_RECURSIVE_DATA";
 
         bool binary_caching_enabled() const { return binary_caching.value_or(true); }
         bool compiler_tracking_enabled() const { return compiler_tracking.value_or(true); }
-        bool registries_enabled() const { return registries_feature.value_or(false); }
-        bool versions_enabled() const { return versions_feature.value_or(false); }
+        bool registries_enabled() const { return registries_feature.value_or(true); }
+        bool versions_enabled() const { return versions_feature.value_or(true); }
+        bool manifests_enabled() const { return manifest_mode.value_or(true); }
         FeatureFlagSettings feature_flag_settings() const
         {
             FeatureFlagSettings f;
@@ -211,6 +216,7 @@ namespace vcpkg
             f.compiler_tracking = compiler_tracking_enabled();
             f.registries = registries_enabled();
             f.versions = versions_enabled();
+            f.manifests = manifests_enabled();
             return f;
         }
 

@@ -20,11 +20,36 @@
 
 namespace vcpkg
 {
+    struct LockFile
+    {
+        struct EntryData
+        {
+            std::string value;
+            bool stale;
+        };
+        struct Entry
+        {
+            LockFile* lockfile;
+            std::map<std::string, EntryData, std::less<>>::iterator data;
+
+            const std::string& value() const { return data->second.value; }
+            bool stale() const { return data->second.stale; }
+            const std::string& uri() const { return data->first; }
+
+            void ensure_up_to_date(const VcpkgPaths& paths) const;
+        };
+
+        Entry get_or_fetch(const VcpkgPaths& paths, StringView key);
+
+        std::map<std::string, EntryData, std::less<>> lockdata;
+        bool modified = false;
+    };
+
     struct RegistryEntry
     {
         virtual View<VersionT> get_port_versions() const = 0;
 
-        virtual ExpectedS<fs::path> get_path_to_version(const VcpkgPaths& paths, const VersionT& version) const = 0;
+        virtual ExpectedS<path> get_path_to_version(const VcpkgPaths& paths, const VersionT& version) const = 0;
 
         virtual ~RegistryEntry() = default;
     };
@@ -86,9 +111,8 @@ namespace vcpkg
         void add_registry(Registry&& r);
         void set_default_registry(std::unique_ptr<RegistryImplementation>&& r);
         void set_default_registry(std::nullptr_t r);
-
-        // this exists in order to allow versioning and registries to be developed and tested separately
-        void experimental_set_builtin_registry_baseline(StringView baseline) const;
+        bool is_default_builtin_registry() const;
+        void set_default_builtin_registry_baseline(StringView baseline) const;
 
         // returns whether the registry set has any modifications to the default
         // (i.e., whether `default_registry` was set, or `registries` had any entries)
@@ -101,13 +125,15 @@ namespace vcpkg
     };
 
     std::unique_ptr<Json::IDeserializer<std::unique_ptr<RegistryImplementation>>>
-    get_registry_implementation_deserializer(const fs::path& configuration_directory);
+    get_registry_implementation_deserializer(const path& configuration_directory);
 
     std::unique_ptr<Json::IDeserializer<std::vector<Registry>>> get_registry_array_deserializer(
-        const fs::path& configuration_directory);
+        const path& configuration_directory);
 
     ExpectedS<std::vector<std::pair<SchemedVersion, std::string>>> get_builtin_versions(const VcpkgPaths& paths,
                                                                                         StringView port_name);
 
     ExpectedS<std::map<std::string, VersionT, std::less<>>> get_builtin_baseline(const VcpkgPaths& paths);
+
+    bool is_git_commit_sha(StringView sv);
 }

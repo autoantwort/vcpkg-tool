@@ -49,7 +49,7 @@ namespace vcpkg::Dependencies
         /// <summary>
         /// Representation of a package and its features in a ClusterGraph.
         /// </summary>
-        struct Cluster : Util::MoveOnlyBase
+        struct Cluster
         {
             Cluster(const InstalledPackageView& ipv, ExpectedS<const SourceControlFileLocation&>&& scfl)
                 : m_spec(ipv.spec()), m_scfl(std::move(scfl)), m_installed(ipv)
@@ -57,6 +57,11 @@ namespace vcpkg::Dependencies
             }
 
             Cluster(const PackageSpec& spec, const SourceControlFileLocation& scfl) : m_spec(spec), m_scfl(scfl) { }
+
+            Cluster(const Cluster&) = delete;
+            Cluster(Cluster&&) = default;
+            Cluster& operator=(const Cluster&) = delete;
+            Cluster& operator=(Cluster&&) = default;
 
             bool has_feature_installed(const std::string& feature) const
             {
@@ -260,12 +265,15 @@ namespace vcpkg::Dependencies
     /// <summary>
     /// Directional graph representing a collection of packages with their features connected by their dependencies.
     /// </summary>
-    struct ClusterGraph : Util::ResourceBase
+    struct ClusterGraph
     {
         explicit ClusterGraph(const PortFileProvider::PortFileProvider& port_provider, Triplet host_triplet)
             : m_port_provider(port_provider), m_host_triplet(host_triplet)
         {
         }
+
+        ClusterGraph(const ClusterGraph&) = delete;
+        ClusterGraph& operator=(const ClusterGraph&) = delete;
 
         /// <summary>
         ///     Find the cluster associated with spec or if not found, create it from the PortFileProvider.
@@ -317,10 +325,10 @@ namespace vcpkg::Dependencies
                 .first->second;
         }
 
-        const Cluster& find_or_exit(const PackageSpec& spec, LineInfo linfo) const
+        const Cluster& find_or_exit(const PackageSpec& spec, LineInfo li) const
         {
             auto it = m_graph.find(spec);
-            Checks::check_exit(linfo, it != m_graph.end(), "Failed to locate spec in graph: %s", spec);
+            Checks::check_exit(li, it != m_graph.end(), "Failed to locate spec in graph: %s", spec);
             return it->second;
         }
 
@@ -340,7 +348,7 @@ namespace vcpkg::Dependencies
                                         const Build::BuildPackageOptions& options,
                                         const SourceControlFileLocation* scfl,
                                         const InstalledPackageView* ipv,
-                                        const fs::path& builtin_ports_dir)
+                                        const path& builtin_ports_dir)
     {
         std::string ret;
         switch (request_type)
@@ -364,9 +372,9 @@ namespace vcpkg::Dependencies
         }
         if (scfl)
         {
-            const auto s_install_port_path = fs::u8string(scfl->source_location);
+            const auto s_install_port_path = vcpkg::u8string(scfl->source_location);
             if (!builtin_ports_dir.empty() &&
-                !Strings::case_insensitive_ascii_starts_with(s_install_port_path, fs::u8string(builtin_ports_dir)))
+                !Strings::case_insensitive_ascii_starts_with(s_install_port_path, vcpkg::u8string(builtin_ports_dir)))
             {
                 Strings::append(ret, " -- ", s_install_port_path);
             }
@@ -473,9 +481,9 @@ namespace vcpkg::Dependencies
         if (abi_info.get()->package_abi.empty()) return nullopt;
         return abi_info.get()->package_abi;
     }
-    const Build::PreBuildInfo& InstallPlanAction::pre_build_info(LineInfo linfo) const
+    const Build::PreBuildInfo& InstallPlanAction::pre_build_info(LineInfo li) const
     {
-        return *abi_info.value_or_exit(linfo).pre_build_info.get();
+        return *abi_info.value_or_exit(li).pre_build_info.get();
     }
 
     bool InstallPlanAction::compare_by_name(const InstallPlanAction* left, const InstallPlanAction* right)
@@ -1084,12 +1092,12 @@ namespace vcpkg::Dependencies
 
     PackageGraph::~PackageGraph() = default;
 
-    void print_plan(const ActionPlan& action_plan, const bool is_recursive, const fs::path& builtin_ports_dir)
+    void print_plan(const ActionPlan& action_plan, const bool is_recursive, const path& builtin_ports_dir)
     {
         if (action_plan.remove_actions.empty() && action_plan.already_installed.empty() &&
             action_plan.install_actions.empty())
         {
-            System::print2("All requested packages are currently installed.\n");
+            print2("All requested packages are currently installed.\n");
             return;
         }
 
@@ -1152,14 +1160,14 @@ namespace vcpkg::Dependencies
 
         if (!excluded.empty())
         {
-            System::print2("The following packages are excluded:\n", actions_to_output_string(excluded), '\n');
+            print2("The following packages are excluded:\n", actions_to_output_string(excluded), '\n');
         }
 
         if (!already_installed_plans.empty())
         {
-            System::print2("The following packages are already installed:\n",
-                           actions_to_output_string(already_installed_plans),
-                           '\n');
+            print2("The following packages are already installed:\n",
+                   actions_to_output_string(already_installed_plans),
+                   '\n');
         }
 
         if (!remove_specs.empty())
@@ -1169,35 +1177,34 @@ namespace vcpkg::Dependencies
             {
                 Strings::append(msg, to_output_string(RequestType::USER_REQUESTED, spec.to_string()), '\n');
             }
-            System::print2(msg);
+            print2(msg);
         }
 
         if (!rebuilt_plans.empty())
         {
-            System::print2("The following packages will be rebuilt:\n", actions_to_output_string(rebuilt_plans), '\n');
+            print2("The following packages will be rebuilt:\n", actions_to_output_string(rebuilt_plans), '\n');
         }
 
         if (!new_plans.empty())
         {
-            System::print2(
-                "The following packages will be built and installed:\n", actions_to_output_string(new_plans), '\n');
+            print2("The following packages will be built and installed:\n", actions_to_output_string(new_plans), '\n');
         }
 
         if (!only_install_plans.empty())
         {
-            System::print2("The following packages will be directly installed:\n",
-                           actions_to_output_string(only_install_plans),
-                           '\n');
+            print2("The following packages will be directly installed:\n",
+                   actions_to_output_string(only_install_plans),
+                   '\n');
         }
 
         if (has_non_user_requested_packages)
-            System::print2("Additional packages (*) will be modified to complete this operation.\n");
+            print2("Additional packages (*) will be modified to complete this operation.\n");
         bool have_removals = !remove_specs.empty() || !rebuilt_plans.empty();
         if (have_removals && !is_recursive)
         {
-            System::print2(System::Color::warning,
-                           "If you are sure you want to rebuild the above packages, run the command with the "
-                           "--recurse option\n");
+            print2(Color::warning,
+                   "If you are sure you want to rebuild the above packages, run the command with the "
+                   "--recurse option\n");
             Checks::exit_fail(VCPKG_LINE_INFO);
         }
     }
@@ -1259,7 +1266,7 @@ namespace vcpkg::Dependencies
                 bool is_less_than(const Versions::Version& new_ver) const;
             };
 
-            struct PackageNode : Util::MoveOnlyBase
+            struct PackageNode
             {
                 std::map<Versions::Version, VersionSchemeInfo*, VersionTMapLess> vermap;
                 std::map<std::string, VersionSchemeInfo> exacts;
@@ -1271,6 +1278,12 @@ namespace vcpkg::Dependencies
 
                 VersionSchemeInfo* get_node(const Versions::Version& ver);
                 VersionSchemeInfo& emplace_node(Versions::Scheme scheme, const Versions::Version& ver);
+
+                PackageNode() = default;
+                PackageNode(const PackageNode&) = delete;
+                PackageNode(PackageNode&&) = default;
+                PackageNode& operator=(const PackageNode&) = delete;
+                PackageNode& operator=(PackageNode&&) = default;
 
                 template<class F>
                 void foreach_vsi(F f)
@@ -1481,7 +1494,18 @@ namespace vcpkg::Dependencies
                 }
 
                 auto& dep_node = emplace_package(dep_spec);
-                add_constraint(dep_node, dep, ref.first.name());
+                if (dep_spec == ref.first)
+                {
+                    // this is a feature dependency for oneself
+                    for (auto&& f : dep.features)
+                    {
+                        add_constraint(ref, f, ref.first.name());
+                    }
+                }
+                else
+                {
+                    add_constraint(dep_node, dep, ref.first.name());
+                }
 
                 p.first->second.emplace_back(dep_spec, "core");
                 for (auto&& f : dep.features)

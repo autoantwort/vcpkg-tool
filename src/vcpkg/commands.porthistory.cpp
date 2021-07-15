@@ -28,28 +28,11 @@ namespace vcpkg::Commands::PortHistory
             Versions::Scheme scheme;
         };
 
-        const System::ExitCodeAndOutput run_git_command_inner(const VcpkgPaths& paths,
-                                                              const fs::path& dot_git_directory,
-                                                              const fs::path& working_directory,
-                                                              const System::Command& cmd)
+        ExitCodeAndOutput run_git_command(const VcpkgPaths& paths, const Command& cmd)
         {
-            const fs::path& git_exe = paths.get_tool_exe(Tools::GIT);
+            auto full_cmd = paths.git_cmd_builder(paths.root / ".git", paths.root).raw_arg(cmd.command_line());
 
-            auto full_cmd = System::Command(git_exe)
-                                .string_arg(Strings::concat("--git-dir=", fs::u8string(dot_git_directory)))
-                                .string_arg(Strings::concat("--work-tree=", fs::u8string(working_directory)))
-                                .raw_arg(cmd.command_line());
-
-            auto output = System::cmd_execute_and_capture_output(full_cmd);
-            return output;
-        }
-
-        const System::ExitCodeAndOutput run_git_command(const VcpkgPaths& paths, const System::Command& cmd)
-        {
-            const fs::path& work_dir = paths.root;
-            const fs::path dot_git_dir = paths.root / ".git";
-
-            return run_git_command_inner(paths, dot_git_dir, work_dir, cmd);
+            return cmd_execute_and_capture_output(full_cmd);
         }
 
         vcpkg::Optional<HistoryVersion> get_version_from_text(const std::string& text,
@@ -88,8 +71,7 @@ namespace vcpkg::Commands::PortHistory
                                                                 const std::string& commit_date,
                                                                 const std::string& port_name)
         {
-            auto rev_parse_cmd =
-                System::Command("rev-parse").string_arg(Strings::concat(commit_id, ":ports/", port_name));
+            auto rev_parse_cmd = Command("rev-parse").string_arg(Strings::concat(commit_id, ":ports/", port_name));
             auto rev_parse_output = run_git_command(paths, rev_parse_cmd);
             if (rev_parse_output.exit_code == 0)
             {
@@ -97,7 +79,7 @@ namespace vcpkg::Commands::PortHistory
                 const auto git_tree = Strings::trim(std::move(rev_parse_output.output));
 
                 // Do we have a manifest file?
-                auto manifest_cmd = System::Command("show").string_arg(Strings::concat(git_tree, ":vcpkg.json"));
+                auto manifest_cmd = Command("show").string_arg(Strings::concat(git_tree, ":vcpkg.json"));
                 auto manifest_output = run_git_command(paths, manifest_cmd);
                 if (manifest_output.exit_code == 0)
                 {
@@ -105,7 +87,7 @@ namespace vcpkg::Commands::PortHistory
                         manifest_output.output, git_tree, commit_id, commit_date, port_name, true);
                 }
 
-                auto cmd = System::Command("show").string_arg(Strings::concat(git_tree, ":CONTROL"));
+                auto cmd = Command("show").string_arg(Strings::concat(git_tree, ":CONTROL"));
                 auto control_output = run_git_command(paths, cmd);
 
                 if (control_output.exit_code == 0)
@@ -121,7 +103,7 @@ namespace vcpkg::Commands::PortHistory
         std::vector<HistoryVersion> read_versions_from_log(const VcpkgPaths& paths, const std::string& port_name)
         {
             // log --format="%H %cd" --date=short --left-only -- ports/{port_name}/.
-            System::Command builder;
+            Command builder;
             builder.string_arg("log");
             builder.string_arg("--format=%H %cd");
             builder.string_arg("--date=short");
@@ -207,27 +189,26 @@ namespace vcpkg::Commands::PortHistory
 
             if (maybe_output_file.has_value())
             {
-                auto output_file_path = fs::u8path(maybe_output_file.value_or_exit(VCPKG_LINE_INFO));
+                auto output_file_path = vcpkg::u8path(maybe_output_file.value_or_exit(VCPKG_LINE_INFO));
                 auto& fs = paths.get_filesystem();
                 fs.write_contents(output_file_path, json_string, VCPKG_LINE_INFO);
             }
             else
             {
-                System::printf("%s\n", json_string);
+                vcpkg::printf("%s\n", json_string);
             }
         }
         else
         {
             if (maybe_output_file.has_value())
             {
-                System::printf(
-                    System::Color::warning, "Warning: Option `--$s` requires `--x-json` switch.", OPTION_OUTPUT_FILE);
+                vcpkg::printf(Color::warning, "Warning: Option `--$s` requires `--x-json` switch.", OPTION_OUTPUT_FILE);
             }
 
-            System::print2("             version          date    vcpkg commit\n");
+            print2("             version          date    vcpkg commit\n");
             for (auto&& version : versions)
             {
-                System::printf("%20.20s    %s    %s\n", version.version_string, version.commit_date, version.commit_id);
+                vcpkg::printf("%20.20s    %s    %s\n", version.version_string, version.commit_date, version.commit_id);
             }
         }
         Checks::exit_success(VCPKG_LINE_INFO);

@@ -32,6 +32,8 @@ TEST_CASE ("get_available_basic_commands works", "[commands]")
     check_all_commands(Commands::get_available_basic_commands(), {
         "contact",
         "version",
+        "x-download",
+        "x-init-registry",
 #if defined(_WIN32)
         "x-upload-metrics",
 #endif // defined(_WIN32)

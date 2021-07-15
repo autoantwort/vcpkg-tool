@@ -8,8 +8,12 @@
 
 namespace vcpkg::Metrics
 {
-    struct Metrics : Util::ResourceBase
+    struct Metrics
     {
+        Metrics() = default;
+        Metrics(const Metrics&) = delete;
+        Metrics& operator=(const Metrics&) = delete;
+
         void set_send_metrics(bool should_send_metrics);
         void set_print_metrics(bool should_print_metrics);
         void set_disabled(bool disabled);
@@ -24,7 +28,7 @@ namespace vcpkg::Metrics
         bool metrics_enabled();
 
         void upload(const std::string& payload);
-        void flush(Files::Filesystem& fs);
+        void flush(Filesystem& fs);
     };
 
     extern Util::LockGuarded<Metrics> g_metrics;

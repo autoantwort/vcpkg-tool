@@ -3,6 +3,7 @@
 #include <vcpkg/fwd/dependencies.h>
 #include <vcpkg/fwd/vcpkgpaths.h>
 
+#include <vcpkg/base/downloads.h>
 #include <vcpkg/base/expected.h>
 #include <vcpkg/base/files.h>
 
@@ -56,7 +57,10 @@ namespace vcpkg
     ExpectedS<std::unique_ptr<IBinaryProvider>> create_binary_provider_from_configs_pure(const std::string& env_string,
                                                                                          View<std::string> args);
 
+    ExpectedS<Downloads::DownloadManagerConfig> parse_download_configuration(const Optional<std::string>& arg);
+
     std::string generate_nuget_packages_config(const Dependencies::ActionPlan& action);
 
+    void help_topic_asset_caching(const VcpkgPaths& paths);
     void help_topic_binary_caching(const VcpkgPaths& paths);
 }

@@ -17,9 +17,7 @@ namespace vcpkg::CoffFileReader
         std::vector<MachineType> machine_types;
     };
 
-#if defined(_WIN32)
-    DllInfo read_dll(const fs::path& path);
+    DllInfo read_dll(const ReadFilePointer& fs);
 
-    LibInfo read_lib(const fs::path& path);
-#endif
+    LibInfo read_lib(const ReadFilePointer& fs);
 }

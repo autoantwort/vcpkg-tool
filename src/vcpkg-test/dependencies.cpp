@@ -74,7 +74,7 @@ struct MockVersionedPortfileProvider : PortFileProvider::IVersionedPortfileProvi
             core->port_version = version.port_version();
             core->version_scheme = scheme;
             scf->core_paragraph = std::move(core);
-            it2 = it->second.emplace(version, SourceControlFileLocation{std::move(scf), fs::u8path(name)}).first;
+            it2 = it->second.emplace(version, SourceControlFileLocation{std::move(scf), vcpkg::u8path(name)}).first;
         }
         return it2->second;
     }
@@ -165,15 +165,21 @@ static const PackageSpec& toplevel_spec()
     return ret;
 }
 
-struct MockOverlayProvider : PortFileProvider::IOverlayProvider, Util::ResourceBase
+struct MockOverlayProvider : PortFileProvider::IOverlayProvider
 {
+    MockOverlayProvider() = default;
+    MockOverlayProvider(const MockOverlayProvider&) = delete;
+    MockOverlayProvider& operator=(const MockOverlayProvider&) = delete;
+
     virtual Optional<const SourceControlFileLocation&> get_control_file(StringView name) const override
     {
         auto it = mappings.find(name);
-        if (it != mappings.end())
-            return it->second;
-        else
+        if (it == mappings.end())
+        {
             return nullopt;
+        }
+
+        return it->second;
     }
 
     SourceControlFileLocation& emplace(const std::string& name,
@@ -190,7 +196,7 @@ struct MockOverlayProvider : PortFileProvider::IOverlayProvider, Util::ResourceB
             core->port_version = version.port_version();
             core->version_scheme = scheme;
             scf->core_paragraph = std::move(core);
-            it = mappings.emplace(name, SourceControlFileLocation{std::move(scf), fs::u8path(name)}).first;
+            it = mappings.emplace(name, SourceControlFileLocation{std::move(scf), vcpkg::u8path(name)}).first;
         }
         return it->second;
     }
