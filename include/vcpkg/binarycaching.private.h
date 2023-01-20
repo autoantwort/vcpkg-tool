@@ -5,6 +5,7 @@
 
 #include <vcpkg/base/strings.h>
 
+#include <vcpkg/binarycaching.h>
 #include <vcpkg/dependencies.h>
 
 namespace vcpkg
@@ -35,13 +36,9 @@ namespace vcpkg
     {
         return {Strings::concat(prefix, spec.dir()), format_version_for_nugetref(raw_version, abi_tag)};
     }
-    inline NugetReference make_nugetref(const InstallPlanAction& action, const std::string& prefix)
+    inline NugetReference make_nugetref(const BinaryPackageInformation& info, const std::string& prefix)
     {
-        return make_nugetref(action.spec,
-                             action.source_control_file_and_location.value_or_exit(VCPKG_LINE_INFO)
-                                 .source_control_file->core_paragraph->raw_version,
-                             action.abi_info.value_or_exit(VCPKG_LINE_INFO).package_abi,
-                             prefix);
+        return make_nugetref(info.spec, info.raw_version, info.package_abi, prefix);
     }
 
     namespace details
@@ -57,7 +54,7 @@ namespace vcpkg
     }
 
     std::string generate_nuspec(const Path& package_dir,
-                                const InstallPlanAction& action,
+                                const BinaryPackageInformation& info,
                                 const NugetReference& ref,
                                 details::NuGetRepoInfo rinfo = details::get_nuget_repo_info_from_env());
 }

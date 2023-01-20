@@ -340,7 +340,7 @@ namespace vcpkg
                 else
                     msg::println(msgBuildingPackage, msg::spec = action.displayname());
 
-                auto result = build_package(args, paths, action, binary_cache, build_logs_recorder, status_db);
+                auto result = build_package(args, paths, action, build_logs_recorder, status_db);
 
                 if (BuildResult::DOWNLOADED == result.code)
                 {
@@ -378,10 +378,9 @@ namespace vcpkg
                 case InstallResult::FILE_CONFLICTS: code = BuildResult::FILE_CONFLICTS; break;
                 default: Checks::unreachable(VCPKG_LINE_INFO);
             }
-
-            if (action.build_options.clean_packages == CleanPackages::YES)
+            if (restore != RestoreResult::restored)
             {
-                fs.remove_all(paths.package_dir(action.spec), VCPKG_LINE_INFO);
+                binary_cache.push_success(action);
             }
 
             if (action.build_options.clean_downloads == CleanDownloads::YES)
@@ -1020,7 +1019,7 @@ namespace vcpkg
             }
         }
 
-        BinaryCache binary_cache;
+        BinaryCache binary_cache(paths);
         if (!only_downloads)
         {
             binary_cache.install_providers_for(args, paths);
