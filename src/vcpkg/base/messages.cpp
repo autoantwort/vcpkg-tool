@@ -468,7 +468,6 @@ namespace vcpkg::msg
 
 namespace vcpkg
 {
-
     REGISTER_MESSAGE(ABaseline);
     REGISTER_MESSAGE(ABoolean);
     REGISTER_MESSAGE(ABaselineObject);
@@ -525,6 +524,7 @@ namespace vcpkg
     REGISTER_MESSAGE(AllFormatArgsRawArgument);
     REGISTER_MESSAGE(AllFormatArgsUnbalancedBraces);
     REGISTER_MESSAGE(AllPackagesAreUpdated);
+    REGISTER_MESSAGE(AllPackagesUploaded);
     REGISTER_MESSAGE(AlreadyInstalled);
     REGISTER_MESSAGE(AlreadyInstalledNotHead);
     REGISTER_MESSAGE(AnArtifactsGitRegistryUrl);
@@ -1238,6 +1238,7 @@ namespace vcpkg
     REGISTER_MESSAGE(UploadedPackagesToVendor);
     REGISTER_MESSAGE(UploadingBinariesToVendor);
     REGISTER_MESSAGE(UploadingBinariesUsingVendor);
+    REGISTER_MESSAGE(UploadRemainingPackages);
     REGISTER_MESSAGE(UseEnvVar);
     REGISTER_MESSAGE(UserWideIntegrationDeleted);
     REGISTER_MESSAGE(UserWideIntegrationRemoved);
@@ -1295,6 +1296,7 @@ namespace vcpkg
     REGISTER_MESSAGE(VSNoInstances);
     REGISTER_MESSAGE(WaitingForChildrenToExit);
     REGISTER_MESSAGE(WaitingToTakeFilesystemLock);
+    REGISTER_MESSAGE(WaitUntilPackagesUploaded);
     REGISTER_MESSAGE(WarningMessageMustUsePrintWarning);
     REGISTER_MESSAGE(WarningsTreatedAsErrors);
     REGISTER_MESSAGE(WarnOnParseConfig);

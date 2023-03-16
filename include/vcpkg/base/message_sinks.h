@@ -101,4 +101,29 @@ namespace vcpkg
         CombiningSink(MessageSink& first, MessageSink& second) : m_first(first), m_second(second) { }
         void print(Color c, StringView sv) override;
     };
+
+    struct BGMessageSink : MessageSink
+    {
+        MessageSink& out_sink;
+
+        BGMessageSink(MessageSink& out_sink) : out_sink(out_sink) { }
+        ~BGMessageSink() { publish_directly_to_out_sink(); }
+        // must be called from producer
+        void print(Color c, StringView sv) override;
+
+        // must be called from consumer (synchronizer of out)
+        void print_published();
+
+        void publish_directly_to_out_sink();
+
+    private:
+        std::mutex m_lock;
+        // guarded by m_lock
+        std::vector<std::pair<Color, std::string>> m_published;
+        // unguarded, buffers messages until newline is reached
+        std::vector<std::pair<Color, std::string>> m_unpublished;
+
+        std::mutex m_print_directly_lock;
+        bool m_print_directly_to_out_sink = false;
+    };
 }

@@ -341,7 +341,7 @@ namespace vcpkg
                 else
                     msg::println(msgBuildingPackage, msg::spec = action.displayname());
 
-                auto result = build_package(args, paths, action, binary_cache, build_logs_recorder, status_db);
+                auto result = build_package(args, paths, action, build_logs_recorder, status_db);
 
                 if (BuildResult::DOWNLOADED == result.code)
                 {
@@ -379,8 +379,11 @@ namespace vcpkg
                 case InstallResult::FILE_CONFLICTS: code = BuildResult::FILE_CONFLICTS; break;
                 default: Checks::unreachable(VCPKG_LINE_INFO);
             }
-
-            if (action.build_options.clean_packages == CleanPackages::YES)
+            if (restore != RestoreResult::restored)
+            {
+                binary_cache.push_success(action, paths.package_dir(action.spec));
+            }
+            else if (action.build_options.clean_packages == CleanPackages::YES)
             {
                 fs.remove_all(paths.package_dir(action.spec), VCPKG_LINE_INFO);
             }
@@ -546,6 +549,7 @@ namespace vcpkg
         binary_cache.prefetch(action_plan.install_actions);
         for (auto&& action : action_plan.install_actions)
         {
+            binary_cache.print_push_success_messages();
             TrackedPackageInstallGuard this_install(action_index++, action_count, results, action);
             auto result =
                 perform_install_plan_action(args, paths, action, status_db, binary_cache, build_logs_recorder);
@@ -557,6 +561,7 @@ namespace vcpkg
                         issue_body_path, create_github_issue(args, result, paths, action), VCPKG_LINE_INFO);
                     return issue_body_path;
                 }));
+                binary_cache.wait_for_async_complete();
                 Checks::exit_fail(VCPKG_LINE_INFO);
             }
 
@@ -1021,7 +1026,7 @@ namespace vcpkg
             }
         }
 
-        BinaryCache binary_cache;
+        BinaryCache binary_cache(paths.get_filesystem());
         if (!only_downloads)
         {
             binary_cache.install_providers_for(args, paths);
@@ -1309,7 +1314,7 @@ namespace vcpkg
                 Install::print_usage_information(*bpgh, printed_usages, fs, paths.installed());
             }
         }
-
+        binary_cache.wait_for_async_complete();
         Checks::exit_with_code(VCPKG_LINE_INFO, summary.failed());
     }
 

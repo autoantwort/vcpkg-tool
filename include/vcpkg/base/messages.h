@@ -6,9 +6,11 @@
 #include <vcpkg/base/format.h>
 #include <vcpkg/base/lineinfo.h>
 
+#include <mutex>
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace vcpkg
 {
@@ -369,7 +371,6 @@ namespace vcpkg::msg
 
 namespace vcpkg
 {
-
     DECLARE_MESSAGE(ABaseline, (), "", "a baseline");
     DECLARE_MESSAGE(ABaselineObject, (), "", "a baseline object");
     DECLARE_MESSAGE(ABoolean, (), "", "a boolean");
@@ -494,6 +495,7 @@ namespace vcpkg
                     "example of {value} is 'foo bar {'",
                     "unbalanced brace in format string \"{value}\"");
     DECLARE_MESSAGE(AllPackagesAreUpdated, (), "", "All installed packages are up-to-date with the local portfile.");
+    DECLARE_MESSAGE(AllPackagesUploaded, (), "", "All packages uploaded");
     DECLARE_MESSAGE(AlreadyInstalled, (msg::spec), "", "{spec} is already installed");
     DECLARE_MESSAGE(AlreadyInstalledNotHead,
                     (msg::spec),
@@ -3008,6 +3010,7 @@ namespace vcpkg
                     (msg::spec, msg::vendor, msg::path),
                     "",
                     "Uploading binaries for '{spec}' using '{vendor}' \"{path}\".");
+    DECLARE_MESSAGE(UploadRemainingPackages, (msg::count), "", "Upload remaining {count} package(s)");
     DECLARE_MESSAGE(UseEnvVar,
                     (msg::env_var),
                     "An example of env_var is \"HTTP(S)_PROXY\""
@@ -3239,6 +3242,10 @@ namespace vcpkg
     DECLARE_MESSAGE(VSNoInstances, (), "", "Could not locate a complete Visual Studio instance");
     DECLARE_MESSAGE(WaitingForChildrenToExit, (), "", "Waiting for child processes to exit...");
     DECLARE_MESSAGE(WaitingToTakeFilesystemLock, (msg::path), "", "waiting to take filesystem lock on {path}...");
+    DECLARE_MESSAGE(WaitUntilPackagesUploaded,
+                    (msg::count),
+                    "",
+                    "Wait until the remaining packages ({count}) are uploaded");
     DECLARE_MESSAGE(WarningMessageMustUsePrintWarning,
                     (msg::value),
                     "{value} is is a localized message name like WarningMessageMustUsePrintWarning",

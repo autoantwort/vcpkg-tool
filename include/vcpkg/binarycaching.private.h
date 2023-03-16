@@ -5,6 +5,7 @@
 
 #include <vcpkg/base/strings.h>
 
+#include <vcpkg/binarycaching.h>
 #include <vcpkg/dependencies.h>
 
 namespace vcpkg
@@ -34,6 +35,10 @@ namespace vcpkg
                                         const std::string& prefix)
     {
         return {Strings::concat(prefix, spec.dir()), format_version_for_nugetref(raw_version, abi_tag)};
+    }
+    inline NugetReference make_nugetref(const BinaryPackageInformation& info, const std::string& prefix)
+    {
+        return make_nugetref(info.spec, info.raw_version, info.package_abi, prefix);
     }
     inline NugetReference make_nugetref(const InstallPlanAction& action, const std::string& prefix)
     {
