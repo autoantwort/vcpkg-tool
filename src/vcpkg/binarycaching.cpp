@@ -1420,22 +1420,22 @@ namespace
 
         RestoreResult try_restore(const InstallPlanAction&) const override { return RestoreResult::unavailable; }
 
-        void push_success(const InstallPlanAction& action) const override
+        void push_success(const BinaryProviderPushRequest& request, MessageSink& msg_sink) override
         {
             if (m_write_url.empty()) return;
             const ElapsedTimer timer;
             auto& fs = paths.get_filesystem();
-            const auto& abi = action.package_abi().value_or_exit(VCPKG_LINE_INFO);
-            auto& spec = action.spec;
+            const auto& abi = request.info.package_abi;
+            auto& spec = request.info.spec;
             const auto tmp_archive_path = make_temp_archive_path(paths.buildtrees(), spec);
             auto compression_result = compress_directory_to_zip(
                 paths.get_filesystem(), paths.get_tool_cache(), stdout_sink, paths.package_dir(spec), tmp_archive_path);
             if (!compression_result)
             {
-                vcpkg::msg::println(Color::warning,
-                                    msg::format_warning(msgCompressFolderFailed, msg::path = paths.package_dir(spec))
-                                        .append_raw(' ')
-                                        .append_raw(compression_result.error()));
+                msg_sink.println(Color::warning,
+                                 msg::format_warning(msgCompressFolderFailed, msg::path = paths.package_dir(spec))
+                                     .append_raw(' ')
+                                     .append_raw(compression_result.error()));
                 return;
             }
 
@@ -1473,10 +1473,10 @@ namespace
                 }
             }
 
-            msg::println(msgUploadedPackagesToVendor,
-                         msg::count = upload_count,
-                         msg::elapsed = timer.elapsed(),
-                         msg::vendor = "GHA");
+            msg_sink.println(msgUploadedPackagesToVendor,
+                             msg::count = upload_count,
+                             msg::elapsed = timer.elapsed(),
+                             msg::vendor = "GHA");
         }
 
         void precheck(View<InstallPlanAction> actions, View<CacheStatus*> cache_status) const override
@@ -1907,16 +1907,11 @@ namespace vcpkg
         if (have_remaining_packages)
         {
             bg_msg_sink.print_published();
-            msg::println(msgWaitUntilPackagesUploaded, msg::count = remaining_packages_to_push);
         }
         bg_msg_sink.publish_directly_to_out_sink();
         end_push_thread = true;
         actions_to_push_notifier.notify_all();
         push_thread.join();
-        if (have_remaining_packages)
-        {
-            msg::println(msgAllPackagesUploaded);
-        }
     }
 
     BinaryCache::BinaryCache(Filesystem& filesystem)
@@ -2129,10 +2124,6 @@ namespace vcpkg
             // Now, consume all of `my_tasks` before taking the lock again.
             for (auto& action_to_push : my_tasks)
             {
-                if (end_push_thread)
-                {
-                    msg::println(msgUploadRemainingPackages, msg::count = remaining_packages_to_push);
-                }
                 for (auto&& provider : m_providers)
                 {
                     provider->push_success(action_to_push.request, bg_msg_sink);
