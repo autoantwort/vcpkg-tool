@@ -987,6 +987,11 @@ DECLARE_MESSAGE(FailedVendorAuthentication,
                 "",
                 "One or more {vendor} credential providers failed to authenticate. See '{url}' for more details "
                 "on how to provide credentials.")
+DECLARE_MESSAGE(FeatureBaselineExpectedFeatures,
+                (msg::value),
+                "{value} is a keyword",
+                "When using '{value}' a list of features must be specified.")
+DECLARE_MESSAGE(FeatureBaselineNoFeaturesForFail, (), "", "When using '= fail' no list of features is allowed.")
 DECLARE_MESSAGE(FeedbackAppreciated, (), "", "Thank you for your feedback!")
 DECLARE_MESSAGE(FilesContainAbsolutePath1,
                 (),
@@ -1847,6 +1852,10 @@ DECLARE_MESSAGE(NewSpecifyNameVersionOrApplication,
 DECLARE_MESSAGE(NewVersionCannotBeEmpty, (), "", "--version cannot be empty.")
 DECLARE_MESSAGE(NoArgumentsForOption, (msg::option), "", "The option --{option} does not accept an argument.")
 DECLARE_MESSAGE(NoCachedPackages, (), "", "No packages are cached.")
+DECLARE_MESSAGE(NoCoreFeatureAllowedInNonFailBaselineEntry,
+                (msg::value),
+                "{value} is a keyword",
+                "'core' is not allowed in the list of features if the entry is of type '{value}'")
 DECLARE_MESSAGE(NoError, (), "", "no error")
 DECLARE_MESSAGE(NoInstalledPackages,
                 (),

@@ -11,7 +11,7 @@
 
 #include <vcpkg/binarycaching.h>
 #include <vcpkg/build.h>
-#include <vcpkg/ci-baseline.h>
+#include <vcpkg/ci-feature-baseline.h>
 #include <vcpkg/cmakevars.h>
 #include <vcpkg/commands.setinstalled.h>
 #include <vcpkg/commands.test-features.h>
@@ -85,7 +85,7 @@ namespace
             }
             else
             {
-                feature = Strings::concat("all_", ++counter);
+                feature = fmt::format("all_{}", ++counter);
             }
             auto new_base_path = base_path / Strings::concat(spec.package_spec.name(), '_', feature);
             filesystem.create_directory(new_base_path, VCPKG_LINE_INFO);
@@ -141,7 +141,7 @@ namespace vcpkg::Commands::TestFeatures
         []() { return create_example_string("test-features llvm"); },
         0,
         SIZE_MAX,
-        {CI_SWITCHES, CI_SETTINGS},
+        {CI_SWITCHES, CI_SETTINGS, {}},
         nullptr,
     };
 
@@ -232,6 +232,10 @@ namespace vcpkg::Commands::TestFeatures
             if (test_feature_core && !Util::Sets::contains(baseline.skip_features, "core"))
             {
                 specs_to_test.emplace_back(package_spec, InternalFeatureSet{{"core"}});
+                for (const auto& option_set : baseline.options)
+                {
+                    specs_to_test.back().features.push_back(option_set.front());
+                }
             }
             InternalFeatureSet all_features{{"core"}};
             for (const auto& feature : port->feature_paragraphs)
@@ -239,16 +243,29 @@ namespace vcpkg::Commands::TestFeatures
                 if (feature->supports_expression.evaluate(dep_info_vars) &&
                     !Util::Sets::contains(baseline.skip_features, feature->name))
                 {
-                    // if we expect a feature to cascade don't add it the the all features test because this test
-                    // will them simply cascade too
-                    if (!Util::Sets::contains(baseline.cascade_features, feature->name))
+                    // if we expect a feature to cascade or fail don't add it the the all features test because this
+                    // test will them simply cascade or fail too
+                    if (!Util::Sets::contains(baseline.cascade_features, feature->name) &&
+                        !Util::Sets::contains(baseline.failing_features, feature->name))
                     {
-                        all_features.push_back(feature->name);
+                        if (Util::all_of(baseline.options, [&](const auto& options) {
+                                return !Util::contains(options, feature->name) || options.front() == feature->name;
+                            }))
+                        {
+                            all_features.push_back(feature->name);
+                        }
                     }
                     if (test_features_seperatly &&
                         !Util::Sets::contains(baseline.no_separate_feature_test, feature->name))
                     {
                         specs_to_test.emplace_back(package_spec, InternalFeatureSet{{"core", feature->name}});
+                        for (const auto& options : baseline.options)
+                        {
+                            if (!Util::contains(options, feature->name))
+                            {
+                                specs_to_test.back().features.push_back(options.front());
+                            }
+                        }
                     }
                 }
             }
