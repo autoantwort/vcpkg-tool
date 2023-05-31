@@ -19,6 +19,7 @@
 
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #endif // !_WIN32
 
 #if defined(__linux__)
@@ -1898,6 +1899,62 @@ namespace vcpkg
         return result;
     }
 
+    int64_t Filesystem::last_write_time(const Path& target, vcpkg::LineInfo li) const noexcept
+    {
+        std::error_code ec;
+        auto result = this->last_write_time(target, ec);
+        if (ec)
+        {
+            exit_filesystem_call_error(li, ec, __func__, {target});
+        }
+
+        return result;
+    }
+
+    int64_t Filesystem::last_access_time(const Path& target, vcpkg::LineInfo li) const noexcept
+    {
+        std::error_code ec;
+        auto result = this->last_access_time(target, ec);
+        if (ec)
+        {
+            exit_filesystem_call_error(li, ec, __func__, {target});
+        }
+
+        return result;
+    }
+
+    void Filesystem::last_access_time(const Path& target, int64_t new_time, vcpkg::LineInfo li) const noexcept
+    {
+        std::error_code ec;
+        this->last_access_time(target, new_time, ec);
+        if (ec)
+        {
+            exit_filesystem_call_error(li, ec, __func__, {target});
+        }
+    }
+
+    space_info Filesystem::space(const Path& target, vcpkg::LineInfo li) const noexcept
+    {
+        std::error_code ec;
+        auto result = this->space(target, ec);
+        if (ec)
+        {
+            exit_filesystem_call_error(li, ec, __func__, {target});
+        }
+        return result;
+    }
+
+    int64_t Filesystem::file_size(const Path& target, vcpkg::LineInfo li) const noexcept
+    {
+        std::error_code ec;
+        auto result = this->file_size(target, ec);
+        if (ec)
+        {
+            exit_filesystem_call_error(li, ec, __func__, {target});
+        }
+        return result;
+    }
+
     void Filesystem::write_lines(const Path& file_path, const std::vector<std::string>& lines, LineInfo li)
     {
         std::error_code ec;
@@ -3352,6 +3409,195 @@ namespace vcpkg
             return FileType::unknown;
 #endif // ^^^ !_WIN32
         }
+
+        virtual int64_t last_write_time_now() const override
+        {
+#if defined(_WIN32)
+            return stdfs::file_time_type::clock::now().time_since_epoch().count();
+#else // ^^^ _WIN32 // !_WIN32 vvv
+            struct timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            return ts.tv_sec * 1'000'000'000 + ts.tv_nsec;
+#endif
+        }
+
+        virtual int64_t last_write_time(const Path& target, std::error_code& ec) const override
+        {
+#if defined(_WIN32)
+            auto result = stdfs::last_write_time(to_stdfs_path(target), ec);
+            return result.time_since_epoch().count();
+#else // ^^^ _WIN32 // !_WIN32 vvv
+            struct stat s;
+            if (::lstat(target.c_str(), &s) == 0)
+            {
+                ec.clear();
+#ifdef __APPLE__
+                return s.st_mtimespec.tv_sec * 1'000'000'000 + s.st_mtimespec.tv_nsec;
+#else
+                return s.st_mtim.tv_sec * 1'000'000'000 + s.st_mtim.tv_nsec;
+#endif
+            }
+
+            ec.assign(errno, std::generic_category());
+            return {};
+#endif // ^^^ !_WIN32
+        }
+
+#if defined(_WIN32)
+        // FILETIME contains a 64-bit value representing the number of 100-nanosecond intervals since January 1, 1601
+        // (UTC). shift epoch by 400 years to fit into int64_t (can hold 292 years)
+        static constexpr uint64_t epoch_shift =
+            std::chrono::duration_cast<std::chrono::duration<uint64_t, std::nano>>(std::chrono::hours{24 * 365 * 400})
+                .count() /
+            100;
+
+        static int64_t filetime_to_int64(FILETIME filetime)
+        {
+            ULARGE_INTEGER large_integer;
+            large_integer.HighPart = filetime.dwHighDateTime;
+            large_integer.LowPart = filetime.dwLowDateTime;
+            large_integer.QuadPart -= epoch_shift;
+            return large_integer.QuadPart * 100;
+        }
+
+        static FILETIME int64_to_filetime(int64_t value)
+        {
+            ULARGE_INTEGER large_integer;
+            FILETIME filetime;
+            large_integer.QuadPart = static_cast<uint64_t>(value / 100);
+            large_integer.QuadPart += epoch_shift;
+            filetime.dwHighDateTime = large_integer.HighPart;
+            filetime.dwLowDateTime = large_integer.LowPart;
+            return filetime;
+        }
+#endif
+        virtual int64_t last_access_time_now() const override
+        {
+#if defined(_WIN32)
+            FILETIME ft;
+            SYSTEMTIME st;
+            GetSystemTime(&st);
+            SystemTimeToFileTime(&st, &ft);
+            return filetime_to_int64(ft);
+#else // ^^^ _WIN32 // !_WIN32 vvv
+            struct timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            return ts.tv_sec * 1'000'000'000 + ts.tv_nsec;
+#endif
+        }
+
+        virtual int64_t last_access_time(const Path& target, std::error_code& ec) const override
+        {
+#if defined(_WIN32)
+            auto wide_path = Strings::to_utf16(target.native());
+            FileHandle fh(wide_path.c_str(),
+                          GENERIC_READ,
+                          FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                          OPEN_EXISTING,
+                          0,
+                          ec);
+            if (ec)
+            {
+                return {};
+            }
+            FILETIME last_access_time;
+            if (!GetFileTime(fh.h_file, nullptr, &last_access_time, nullptr))
+            {
+                ec.assign(GetLastError(), std::system_category());
+                return {};
+            }
+            return filetime_to_int64(last_access_time);
+#else // ^^^ _WIN32 // !_WIN32 vvv
+            struct stat s;
+            if (::lstat(target.c_str(), &s) == 0)
+            {
+                ec.clear();
+#ifdef __APPLE__
+                return s.st_atimespec.tv_sec * 1'000'000'000 + s.st_atimespec.tv_nsec;
+#else
+                return s.st_atim.tv_sec * 1'000'000'000 + s.st_atim.tv_nsec;
+#endif
+            }
+
+            ec.assign(errno, std::generic_category());
+            return {};
+#endif // ^^^ !_WIN32
+        }
+
+        virtual void last_access_time(const Path& target, int64_t new_time, std::error_code& ec) const override
+        {
+#if defined(_WIN32)
+            auto wide_path = Strings::to_utf16(target.native());
+            FileHandle fh(wide_path.c_str(),
+                          FILE_WRITE_ATTRIBUTES,
+                          FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                          OPEN_EXISTING,
+                          0,
+                          ec);
+            if (ec)
+            {
+                return;
+            }
+            auto new_last_access_time = int64_to_filetime(new_time);
+            if (!SetFileTime(fh.h_file, nullptr, &new_last_access_time, nullptr))
+            {
+                ec.assign(GetLastError(), std::system_category());
+            }
+            return;
+#else  // ^^^ _WIN32 // !_WIN32 vvv
+            PosixFd fd(target.c_str(), O_WRONLY, ec);
+            if (ec)
+            {
+                return;
+            }
+            timespec times[2]; // last access and modification time
+            times[0].tv_nsec = new_time % 1'000'000'000;
+            times[0].tv_sec = new_time / 1'000'000'000;
+            times[1].tv_nsec = UTIME_OMIT;
+            if (futimens(fd.get(), times))
+            {
+                ec.assign(errno, std::system_category());
+            }
+#endif // ^^^ !_WIN32
+        }
+
+        virtual space_info space(const Path& target, std::error_code& ec) const override
+        {
+#if defined(_WIN32)
+            auto result = stdfs::space(to_stdfs_path(target), ec);
+            space_info info;
+            info.capacity = result.capacity;
+            info.free = result.free;
+            info.available = result.available;
+            return info;
+#else  // ^^^ _WIN32 // !_WIN32 vvv
+            struct statvfs buf;
+            if (statvfs(target.c_str(), &buf))
+            {
+                ec.assign(errno, std::system_category());
+                constexpr auto err = static_cast<std::uintmax_t>(-1);
+                return {err, err, err};
+            }
+            return {buf.f_blocks * buf.f_frsize, buf.f_bfree * buf.f_frsize, buf.f_bavail * buf.f_frsize};
+#endif // ^^^ !_WIN32
+        }
+
+        virtual int64_t file_size(const Path& target, std::error_code& ec) const override
+        {
+#if defined(_WIN32)
+            return stdfs::file_size(to_stdfs_path(target), ec);
+#else  // ^^^ _WIN32 // !_WIN32 vvv
+            struct stat s;
+            if (::lstat(target.c_str(), &s) == 0)
+            {
+                return s.st_size;
+            }
+
+            ec.assign(errno, std::generic_category());
+            return {};
+#endif // ^^^ !_WIN32
+        }
+
         virtual void write_contents(const Path& file_path, StringView data, std::error_code& ec) override
         {
             StatsTimer t(g_us_filesystem_stats);
