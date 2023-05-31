@@ -558,6 +558,7 @@ namespace vcpkg
 
         for (auto&& action : action_plan.install_actions)
         {
+            binary_cache.print_push_success_messages();
             TrackedPackageInstallGuard this_install(action_index++, action_count, results, action);
             auto result =
                 perform_install_plan_action(args, paths, action, status_db, binary_cache, build_logs_recorder);
@@ -569,6 +570,7 @@ namespace vcpkg
                         issue_body_path, create_github_issue(args, result, paths, action), VCPKG_LINE_INFO);
                     return issue_body_path;
                 }));
+                binary_cache.wait_for_async_complete();
                 Checks::exit_fail(VCPKG_LINE_INFO);
             }
 
@@ -1285,11 +1287,11 @@ namespace vcpkg
         track_install_plan(action_plan);
         Install::preclear_packages(paths, action_plan);
 
-        auto binary_cache = only_downloads ? BinaryCache(paths.get_filesystem())
+        auto binary_cache = only_downloads ? std::make_unique<BinaryCache>(paths.get_filesystem())
                                            : BinaryCache::make(args, paths, stdout_sink).value_or_exit(VCPKG_LINE_INFO);
-        binary_cache.fetch(action_plan.install_actions);
+        binary_cache->fetch(action_plan.install_actions);
         const InstallSummary summary = Install::execute_plan(
-            args, action_plan, keep_going, paths, status_db, binary_cache, null_build_logs_recorder());
+            args, action_plan, keep_going, paths, status_db, *binary_cache, null_build_logs_recorder());
 
         if (keep_going == KeepGoing::YES)
         {
@@ -1327,7 +1329,7 @@ namespace vcpkg
                 Install::print_usage_information(*bpgh, printed_usages, fs, paths.installed());
             }
         }
-
+        binary_cache->wait_for_async_complete();
         Checks::exit_with_code(VCPKG_LINE_INFO, summary.failed());
     }
 

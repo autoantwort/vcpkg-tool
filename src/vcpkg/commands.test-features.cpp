@@ -312,7 +312,7 @@ namespace vcpkg::Commands::TestFeatures
         }
 
         fmt::print("Precheck binary cache ...\n");
-        binary_cache.precheck(actions_to_check);
+        binary_cache->precheck(actions_to_check);
 
         Util::stable_sort(install_plans, [](const auto& left, const auto& right) {
             return left.second.install_actions.size() < right.second.install_actions.size();
@@ -403,7 +403,7 @@ namespace vcpkg::Commands::TestFeatures
             {
                 const InstallPlanAction* action = &install_plan.install_actions.back();
                 std::array<const InstallPlanAction*, 1> actions = {action};
-                if (binary_cache.precheck(actions).front() == CacheAvailability::available)
+                if (binary_cache->precheck(actions).front() == CacheAvailability::available)
                 {
                     handle_result(std::move(spec), CiFeatureBaselineState::Pass, baseline);
                     continue;
@@ -425,10 +425,10 @@ namespace vcpkg::Commands::TestFeatures
                                                                 : null_build_logs_recorder();
             ElapsedTimer install_timer;
             Install::preclear_packages(paths, install_plan);
-            binary_cache.fetch(install_plan.install_actions);
+            binary_cache->fetch(install_plan.install_actions);
             const auto summary = Install::execute_plan(
-                args, install_plan, KeepGoing::YES, paths, status_db, binary_cache, build_logs_recorder);
-            binary_cache.clear_cache();
+                args, install_plan, KeepGoing::YES, paths, status_db, *binary_cache, build_logs_recorder);
+            binary_cache->clear_cache();
 
             for (const auto& result : summary.results)
             {

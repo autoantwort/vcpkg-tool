@@ -7,8 +7,10 @@
 #include <vcpkg/fwd/tools.h>
 #include <vcpkg/fwd/vcpkgpaths.h>
 
+#include <vcpkg/base/batch-quere.h>
 #include <vcpkg/base/downloads.h>
 #include <vcpkg/base/expected.h>
+#include <vcpkg/base/message_sinks.h>
 #include <vcpkg/base/path.h>
 
 #include <vcpkg/archives.h>
@@ -18,6 +20,7 @@
 #include <iterator>
 #include <set>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -199,15 +202,20 @@ namespace vcpkg
 
     struct BinaryCache : ReadOnlyBinaryCache
     {
-        static ExpectedL<BinaryCache> make(const VcpkgCmdArguments& args, const VcpkgPaths& paths, MessageSink& sink);
+        static ExpectedL<std::unique_ptr<BinaryCache>> make(const VcpkgCmdArguments& args,
+                                                            const VcpkgPaths& paths,
+                                                            MessageSink& sink);
 
         BinaryCache(Filesystem& fs);
         BinaryCache(const BinaryCache&) = delete;
-        BinaryCache(BinaryCache&&) = default;
+        BinaryCache(BinaryCache&&) = delete;
         ~BinaryCache();
 
         /// Called upon a successful build of `action` to store those contents in the binary cache.
         void push_success(const InstallPlanAction& action);
+
+        void print_push_success_messages();
+        void wait_for_async_complete();
 
     private:
         BinaryCache(BinaryProviders&& providers, Filesystem& fs);
@@ -216,6 +224,19 @@ namespace vcpkg
         Optional<ZipTool> m_zip_tool;
         bool m_needs_nuspec_data = false;
         bool m_needs_zip_file = false;
+
+        struct ActionToPush
+        {
+            BinaryPackageWriteInfo request;
+            bool clean_after_push = false;
+        };
+
+        void push_thread_main();
+
+        BGMessageSink m_bg_msg_sink;
+        BGThreadBatchQueue<ActionToPush> m_actions_to_push;
+        std::atomic_int m_remaining_packages_to_push = 0;
+        std::thread m_push_thread;
     };
 
     ExpectedL<DownloadManagerConfig> parse_download_configuration(const Optional<std::string>& arg);

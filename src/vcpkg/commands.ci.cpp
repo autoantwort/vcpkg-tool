@@ -448,7 +448,7 @@ namespace vcpkg::Commands::CI
         auto action_plan = compute_full_plan(paths, provider, var_provider, all_default_full_specs, serialize_options);
         auto binary_cache = BinaryCache::make(args, paths, stdout_sink).value_or_exit(VCPKG_LINE_INFO);
         auto install_actions = Util::fmap(action_plan.install_actions, [](const auto& action) { return &action; });
-        const auto precheck_results = binary_cache.precheck(install_actions);
+        const auto precheck_results = binary_cache->precheck(install_actions);
         auto split_specs = compute_action_statuses(
             ExclusionPredicate{&exclusions_map}, var_provider, precheck_results, known_failures, action_plan);
 
@@ -533,9 +533,9 @@ namespace vcpkg::Commands::CI
                 build_logs_recorder_storage ? *(build_logs_recorder_storage.get()) : null_build_logs_recorder();
 
             Install::preclear_packages(paths, action_plan);
-            binary_cache.fetch(action_plan.install_actions);
+            binary_cache->fetch(action_plan.install_actions);
             auto summary = Install::execute_plan(
-                args, action_plan, KeepGoing::YES, paths, status_db, binary_cache, build_logs_recorder);
+                args, action_plan, KeepGoing::YES, paths, status_db, *binary_cache, build_logs_recorder);
 
             for (auto&& result : summary.results)
             {
@@ -582,7 +582,7 @@ namespace vcpkg::Commands::CI
                     it_xunit->second, xunitTestResults.build_xml(target_triplet), VCPKG_LINE_INFO);
             }
         }
-
+        binary_cache->wait_for_async_complete();
         Checks::exit_success(VCPKG_LINE_INFO);
     }
 }
