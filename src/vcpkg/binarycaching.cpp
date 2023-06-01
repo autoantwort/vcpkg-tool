@@ -2531,6 +2531,16 @@ namespace vcpkg
 
                 const auto clean_packages = action.build_options.clean_packages == CleanPackages::YES;
 
+                if (clean_packages)
+                {
+                    auto& package_dir = request.package_dir;
+                    static int counter = 0;
+                    Path new_packaged_dir = package_dir + "_push_" + std::to_string(++counter);
+                    m_fs.remove_all(new_packaged_dir, VCPKG_LINE_INFO);
+                    m_fs.rename(package_dir, new_packaged_dir, VCPKG_LINE_INFO);
+                    package_dir = new_packaged_dir;
+                }
+
                 m_remaining_packages_to_push++;
                 m_actions_to_push.push(ActionToPush{std::move(request), clean_packages});
                 return;
