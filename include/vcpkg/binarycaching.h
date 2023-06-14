@@ -206,7 +206,7 @@ namespace vcpkg
                                                             const VcpkgPaths& paths,
                                                             MessageSink& sink);
 
-        BinaryCache(Filesystem& fs);
+        BinaryCache(const Filesystem& fs);
         BinaryCache(const BinaryCache&) = delete;
         BinaryCache(BinaryCache&&) = delete;
         ~BinaryCache();
@@ -218,9 +218,9 @@ namespace vcpkg
         void wait_for_async_complete();
 
     private:
-        BinaryCache(BinaryProviders&& providers, Filesystem& fs);
+        BinaryCache(BinaryProviders&& providers, const Filesystem& fs);
 
-        Filesystem& m_fs;
+        const Filesystem& m_fs;
         Optional<ZipTool> m_zip_tool;
         bool m_needs_nuspec_data = false;
         bool m_needs_zip_file = false;
