@@ -98,6 +98,7 @@ DECLARE_MESSAGE(AGitObjectSha, (), "", "a git object SHA")
 DECLARE_MESSAGE(AGitReference, (), "", "a git reference (for example, a branch)")
 DECLARE_MESSAGE(AGitRegistry, (), "", "a git registry")
 DECLARE_MESSAGE(AGitRepositoryUrl, (), "", "a git repository URL")
+DECLARE_MESSAGE(AllFeatureTestsPassed, (), "", "All feature tests passed.")
 DECLARE_MESSAGE(AllFormatArgsRawArgument,
                 (msg::value),
                 "example of {value} is 'foo {} bar'",
@@ -619,6 +620,8 @@ DECLARE_MESSAGE(ComparingUtf8Decoders,
                 "",
                 "Comparing Utf8Decoders with different provenance; this is always an error")
 DECLARE_MESSAGE(CompressFolderFailed, (msg::path), "", "Failed to compress folder \"{path}\":")
+DECLARE_MESSAGE(ComputeAllAbis, (), "", "Compute all abis ...")
+DECLARE_MESSAGE(ComputeInstallPlans, (msg::count), "", "Compute {count} install plans ...")
 DECLARE_MESSAGE(ComputingInstallPlan, (), "", "Computing installation plan...")
 DECLARE_MESSAGE(ConfigurationErrorRegistriesWithoutBaseline,
                 (msg::path, msg::url),
@@ -2224,6 +2227,7 @@ DECLARE_MESSAGE(PortMissingManifest,
                 (msg::package_name, msg::path),
                 "",
                 "{package_name} has no vcpkg.json or CONTROL file in {path}")
+DECLARE_MESSAGE(PortNotSupported, (msg::package_name, msg::triplet), "", "{package_name} is not supported on {triplet}")
 DECLARE_MESSAGE(PortsNoDiff, (), "", "There were no changes in the ports between the two commits.")
 DECLARE_MESSAGE(PortsRemoved, (msg::count), "", "The following {count} ports were removed:")
 DECLARE_MESSAGE(PortsUpdated, (msg::count), "", "\nThe following {count} ports were updated:")
@@ -2234,6 +2238,7 @@ DECLARE_MESSAGE(PortVersionMultipleSpecification,
                 "",
                 "\"port_version\" cannot be combined with an embedded '#' in the version")
 DECLARE_MESSAGE(PrebuiltPackages, (), "", "There are packages that have not been built. To build them run:")
+DECLARE_MESSAGE(PrecheckBinaryCache, (), "", "Check the binary cache")
 DECLARE_MESSAGE(PreviousIntegrationFileRemains, (), "", "Previous integration file was not removed.")
 DECLARE_MESSAGE(ProgramReturnedNonzeroExitCode,
                 (msg::tool_name, msg::exit_code),
@@ -2480,6 +2485,10 @@ DECLARE_MESSAGE(UnexpectedPortversion,
                 (),
                 "'field' means a JSON key/value pair here",
                 "unexpected \"port-version\" without a versioning field")
+DECLARE_MESSAGE(UnexpectedState,
+                (msg::feature_spec, msg::actual, msg::elapsed),
+                "{actual} is the actual state, e.g. 'pass', 'skip', ...",
+                "{feature_spec} resulted in the unexpected state {actual} after {elapsed}")
 DECLARE_MESSAGE(UnexpectedSwitch,
                 (msg::option),
                 "Switch is a command line switch like --switch",

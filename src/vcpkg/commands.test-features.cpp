@@ -227,7 +227,8 @@ namespace vcpkg::Commands::TestFeatures
             const auto dep_info_vars = var_provider.get_or_load_dep_info_vars(package_spec, host_triplet);
             if (!port->core_paragraph->supports_expression.evaluate(dep_info_vars))
             {
-                fmt::print("Port {} is not supported on {}\n", port->core_paragraph->name, target_triplet);
+                msg::println(
+                    msgPortNotSupported, msg::package_name = port->core_paragraph->name, msg::triplet = target_triplet);
                 continue;
             }
             if (test_feature_core && !Util::Sets::contains(baseline.skip_features, "core"))
@@ -279,7 +280,7 @@ namespace vcpkg::Commands::TestFeatures
                 specs_to_test.emplace_back(package_spec, all_features);
             }
         }
-        fmt::print("compute {} install plans\n", specs_to_test.size());
+        msg::println(msgComputeInstallPlans, msg::count = specs_to_test.size());
 
         std::vector<FullPackageSpec> specs;
         std::vector<const InstallPlanAction*> actions_to_check;
@@ -297,10 +298,8 @@ namespace vcpkg::Commands::TestFeatures
             }
             return std::make_pair(spec, std::move(install_plan));
         });
-        fmt::print("load {} tag vars\n", specs.size());
+        msg::println(msgComputeAllAbis);
         var_provider.load_tag_vars(specs, provider, host_triplet);
-
-        fmt::print("compute all abis ...\n");
         StatusParagraphs status_db = database_load_check(paths.get_filesystem(), paths.installed());
         PortAbiCache cache;
         for (auto& [spec, install_plan] : install_plans)
@@ -311,8 +310,8 @@ namespace vcpkg::Commands::TestFeatures
             }
         }
 
-        fmt::print("Precheck binary cache ...\n");
-        binary_cache->precheck(actions_to_check);
+        msg::println(msgPrecheckBinaryCache);
+        binary_cache.precheck(actions_to_check);
 
         Util::stable_sort(install_plans, [](const auto& left, const auto& right) {
             return left.second.install_actions.size() < right.second.install_actions.size();
@@ -409,7 +408,6 @@ namespace vcpkg::Commands::TestFeatures
                     continue;
                 }
             }
-            msg::write_unlocalized_text_to_stdout(Color::none, Strings::concat("Test feature ", spec, '\n'));
             for (auto&& action : install_plan.install_actions)
             {
                 action.build_options = backcompat_prohibiting_package_options;
@@ -481,15 +479,17 @@ namespace vcpkg::Commands::TestFeatures
 
         for (const auto& result : unexpected_states)
         {
-            msg::write_unlocalized_text_to_stderr(Color::error,
-                                                  Strings::concat(result.spec,
-                                                                  " resulted in the unexpected state ",
-                                                                  result.actual_state,
-                                                                  " ",
-                                                                  result.logs_dir.value_or(""),
-                                                                  " after ",
-                                                                  result.build_time.to_string(),
-                                                                  '\n'));
+            msg::println(Color::error,
+                         msg::format(msgUnexpectedState,
+                                     msg::feature_spec = to_string(result.spec),
+                                     msg::actual = to_string(result.actual_state),
+                                     msg::elapsed = result.build_time)
+                             .append_raw(" ")
+                             .append_raw(result.logs_dir.value_or("")));
+        }
+        if (unexpected_states.empty())
+        {
+            msg::println(msgAllFeatureTestsPassed);
         }
 
         auto it_output_file = settings.find(OPTION_OUTPUT_FAILURE_ABIS);
