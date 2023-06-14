@@ -311,7 +311,7 @@ namespace vcpkg::Commands::TestFeatures
         }
 
         msg::println(msgPrecheckBinaryCache);
-        binary_cache.precheck(actions_to_check);
+        binary_cache->precheck(actions_to_check);
 
         Util::stable_sort(install_plans, [](const auto& left, const auto& right) {
             return left.second.install_actions.size() < right.second.install_actions.size();
