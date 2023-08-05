@@ -40,6 +40,18 @@ namespace vcpkg
         std::error_code ec;
     };
 
+    struct IsSlash
+    {
+        bool operator()(const char c) const noexcept
+        {
+            return c == '/'
+#if defined(_WIN32)
+                   || c == '\\'
+#endif // _WIN32
+                ;
+        }
+    };
+
     bool is_symlink(FileType s);
     bool is_regular_file(FileType s);
     bool is_directory(FileType s);
@@ -89,7 +101,7 @@ namespace vcpkg
     {
         WriteFilePointer() noexcept;
         WriteFilePointer(WriteFilePointer&&) noexcept;
-        explicit WriteFilePointer(const Path& file_path, Append append, std::error_code& ec);
+        explicit WriteFilePointer(const Path& file_path, Append append, Overwrite overwrite, std::error_code& ec);
         WriteFilePointer& operator=(WriteFilePointer&& other) noexcept;
         size_t write(const void* buffer, size_t element_size, size_t element_count) const noexcept;
         int put(int c) const noexcept;
@@ -120,6 +132,9 @@ namespace vcpkg
 
     struct ReadOnlyFilesystem : ILineReader
     {
+        virtual std::uint64_t file_size(const Path& file_path, std::error_code& ec) const = 0;
+        std::uint64_t file_size(const Path& file_path, LineInfo li) const;
+
         virtual std::string read_contents(const Path& file_path, std::error_code& ec) const = 0;
         std::string read_contents(const Path& file_path, LineInfo li) const;
 
@@ -282,9 +297,6 @@ namespace vcpkg
 
         virtual space_info space(const Path& target, std::error_code& ec) const = 0;
         space_info space(const Path& target, LineInfo li) const noexcept;
-
-        virtual int64_t file_size(const Path& target, std::error_code& ec) const = 0;
-        int64_t file_size(const Path& target, LineInfo li) const noexcept;
 
         using ReadOnlyFilesystem::current_path;
         virtual void current_path(const Path& new_current_path, std::error_code&) const = 0;

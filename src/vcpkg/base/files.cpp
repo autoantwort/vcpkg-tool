@@ -48,18 +48,6 @@ namespace
 
     std::atomic<uint64_t> g_us_filesystem_stats(0);
 
-    struct IsSlash
-    {
-        bool operator()(const char c) const noexcept
-        {
-            return c == '/'
-#if defined(_WIN32)
-                   || c == '\\'
-#endif // _WIN32
-                ;
-        }
-    };
-
     constexpr IsSlash is_slash;
 
     bool is_dot(StringView sv) { return sv.size() == 1 && sv[0] == '.'; }
@@ -1502,15 +1490,17 @@ namespace vcpkg
 
     WriteFilePointer::WriteFilePointer(WriteFilePointer&&) noexcept = default;
 
-    WriteFilePointer::WriteFilePointer(const Path& file_path, Append append, std::error_code& ec)
+    WriteFilePointer::WriteFilePointer(const Path& file_path, Append append, Overwrite overwrite, std::error_code& ec)
         : FilePointer(file_path)
     {
 #if defined(_WIN32)
-        m_fs = ::_wfsopen(to_stdfs_path(file_path).c_str(), append == Append::YES ? L"ab" : L"wb", _SH_DENYWR);
+        m_fs = ::_wfsopen(to_stdfs_path(file_path).c_str(),
+                          append == Append::YES ? L"ab" : (overwrite == Overwrite::YES ? L"wb" : L"wbx"),
+                          _SH_DENYWR);
         ec.assign(m_fs == nullptr ? errno : 0, std::generic_category());
         if (m_fs != nullptr) ::setvbuf(m_fs, NULL, _IONBF, 0);
 #else  // ^^^ _WIN32 / !_WIN32 vvv
-        m_fs = ::fopen(file_path.c_str(), append == Append::YES ? "ab" : "wb");
+        m_fs = ::fopen(file_path.c_str(), append == Append::YES ? "ab" : (overwrite == Overwrite::YES ? "wb" : "wbx"));
         if (m_fs)
         {
             ec.clear();
@@ -1535,6 +1525,18 @@ namespace vcpkg
     }
 
     int WriteFilePointer::put(int c) const noexcept { return ::fputc(c, m_fs); }
+
+    uint64_t ReadOnlyFilesystem::file_size(const Path& file_path, LineInfo li) const
+    {
+        std::error_code ec;
+        auto maybe_contents = this->file_size(file_path, ec);
+        if (ec)
+        {
+            exit_filesystem_call_error(li, ec, __func__, {file_path});
+        }
+
+        return maybe_contents;
+    }
 
     std::string ReadOnlyFilesystem::read_contents(const Path& file_path, LineInfo li) const
     {
@@ -2036,17 +2038,6 @@ namespace vcpkg
         return result;
     }
 
-    int64_t Filesystem::file_size(const Path& target, vcpkg::LineInfo li) const noexcept
-    {
-        std::error_code ec;
-        auto result = this->file_size(target, ec);
-        if (ec)
-        {
-            exit_filesystem_call_error(li, ec, __func__, {target});
-        }
-        return result;
-    }
-
     void Filesystem::write_lines(const Path& file_path, const std::vector<std::string>& lines, LineInfo li) const
     {
         std::error_code ec;
@@ -2190,6 +2181,22 @@ namespace vcpkg
 
     struct RealFilesystem final : Filesystem
     {
+        virtual uint64_t file_size(const Path& file_path, std::error_code& ec) const override
+        {
+#ifdef _WIN32
+            return stdfs::file_size(to_stdfs_path(file_path), ec);
+#else
+            struct stat st;
+            if (stat(file_path.c_str(), &st) != 0)
+            {
+                ec.assign(errno, std::generic_category());
+                return 0;
+            }
+
+            return st.st_size;
+#endif // defined(_WIN32)
+        }
+
         virtual std::string read_contents(const Path& file_path, std::error_code& ec) const override
         {
             StatsTimer t(g_us_filesystem_stats);
@@ -2949,7 +2956,7 @@ namespace vcpkg
                                  const std::vector<std::string>& lines,
                                  std::error_code& ec) const override
         {
-            vcpkg::WriteFilePointer output{file_path, Append::NO, ec};
+            vcpkg::WriteFilePointer output{file_path, Append::NO, Overwrite::YES, ec};
             if (!ec)
             {
                 for (const auto& line : lines)
@@ -3696,22 +3703,6 @@ namespace vcpkg
 #endif // ^^^ !_WIN32
         }
 
-        virtual int64_t file_size(const Path& target, std::error_code& ec) const override
-        {
-#if defined(_WIN32)
-            return stdfs::file_size(to_stdfs_path(target), ec);
-#else  // ^^^ _WIN32 // !_WIN32 vvv
-            struct stat s;
-            if (::lstat(target.c_str(), &s) == 0)
-            {
-                return s.st_size;
-            }
-
-            ec.assign(errno, std::generic_category());
-            return {};
-#endif // ^^^ !_WIN32
-        }
-
         virtual void write_contents(const Path& file_path, StringView data, std::error_code& ec) const override
         {
             StatsTimer t(g_us_filesystem_stats);
@@ -3882,7 +3873,7 @@ namespace vcpkg
                                                 Append append,
                                                 std::error_code& ec) const override
         {
-            return WriteFilePointer{file_path, append, ec};
+            return WriteFilePointer{file_path, append, Overwrite::YES, ec};
         }
     };
 

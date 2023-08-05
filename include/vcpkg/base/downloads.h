@@ -36,7 +36,8 @@ namespace vcpkg
                                     View<std::pair<std::string, Path>> url_pairs,
                                     View<std::string> headers);
 
-    bool send_snapshot_to_api(const std::string& github_token,
+    bool send_snapshot_to_api(const Filesystem& fs,
+                              const std::string& github_token,
                               const std::string& github_repository,
                               const Json::Object& snapshot);
     ExpectedL<int> put_file(const ReadOnlyFilesystem&,
@@ -44,7 +45,15 @@ namespace vcpkg
                             const std::vector<std::string>& secrets,
                             View<std::string> headers,
                             const Path& file,
-                            StringView request = "PUT");
+                            StringView method = "PUT");
+
+    ExpectedL<std::string> invoke_http_request(StringView method,
+                                               View<std::string> headers,
+                                               StringView url,
+                                               StringView data = {});
+
+    std::string format_url_query(StringView base_url, View<std::string> query_params);
+
     std::vector<int> url_heads(View<std::string> urls, View<std::string> headers, View<std::string> secrets);
 
     struct DownloadManagerConfig

@@ -370,7 +370,7 @@ namespace
         struct FileData
         {
             Path path;
-            int64_t file_size;
+            uint64_t file_size;
             int64_t time;
             bool operator>(const FileData& other) const { return time > other.time; }
         };
@@ -379,6 +379,8 @@ namespace
             FolderSettings folder_settings;
             std::priority_queue<FileData, std::vector<FileData>, std::greater<FileData>> file_data;
             int64_t current_size = 0;
+            WriteFilePointer own_sync_file;
+            std::map<std::string, uint64_t> other_sync_files; // Mapping from id to bytes read
         };
         mutable std::vector<FileCacheData> file_cache_data;
 
@@ -390,100 +392,118 @@ namespace
             fmt::print("{:<25}{:>20}\n", key, value);
         }
 
+        Optional<FolderSettings> get_folder_settings(const Path& archives_root_dir, MessageSink& msg_sink)
+        {
+            Optional<FolderSettings> maybe_settings;
+            auto settings_path = archives_root_dir / "settings.json";
+            if (m_fs.exists(settings_path, IgnoreErrors{}))
+            {
+                std::error_code ec;
+                auto obj = Json::parse_file(m_fs, settings_path, ec);
+                if (ec)
+                {
+                    msg_sink.println_error(msgFailedToReadFile, msg::path = settings_path, msg::error_msg = ec);
+                }
+                else if (!obj.has_value())
+                {
+                    msg_sink.println_error(msg::format(msgFailedToParseJson, msg::path = settings_path)
+                                               .append_raw('\n')
+                                               .append_raw(obj.error()->to_string()));
+                }
+                else
+                {
+                    FolderSettingsDeserializer instance;
+                    Json::Reader reader;
+                    maybe_settings = reader.visit(obj.get()->value, instance);
+                    if (!reader.warnings().empty())
+                    {
+                        auto warning_message = msg::format(msgParserWarnings, msg::path = settings_path);
+                        for (auto&& warning : reader.warnings())
+                            warning_message.append_raw('\n').append(warning);
+                        msg_sink.println_warning(warning_message);
+                    }
+                    if (maybe_settings.has_value())
+                    {
+                        Debug::println("Read settings file ", settings_path);
+                    }
+                    else
+                    {
+                        auto error_msg = msg::format(msgFailedToParseFileCacheSettings, msg::path = settings_path);
+                        for (auto&& error : reader.errors())
+                            error_msg.append_raw('\n').append(error);
+                        msg_sink.println_error(error_msg);
+                    }
+                }
+            }
+            else
+            {
+                maybe_settings.emplace();
+                maybe_settings.get()->delete_policy =
+                    FolderSettings::DeletePolicy::OldestModificationDateUpdateOnAccess;
+                const auto write_settings_file = [&]() {
+                    auto obj = FolderSettingsDeserializer::serialize(*maybe_settings.get());
+                    obj.insert("$schema",
+                               "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/"
+                               "file-cache-settings.schema.json");
+                    obj.sort_keys();
+                    std::error_code ec;
+                    m_fs.create_directories(archives_root_dir, IgnoreErrors{});
+                    m_fs.write_contents(settings_path, Json::stringify(obj), ec);
+                    if (ec)
+                    {
+                        msg::println_error(msgFailedToWriteFile, msg::path = settings_path, msg::error_msg = ec);
+                    }
+                    return ec;
+                };
+                if (!write_settings_file())
+                {
+                    using namespace std::chrono;
+                    auto old_access_time = m_fs.last_access_time_now() - duration_cast<nanoseconds>(30 * 24h).count();
+                    m_fs.last_access_time(settings_path, old_access_time, VCPKG_LINE_INFO);
+                    m_fs.read_contents(settings_path, VCPKG_LINE_INFO);
+                    if (m_fs.last_access_time(settings_path, VCPKG_LINE_INFO) > old_access_time)
+                    {
+                        maybe_settings.get()->delete_policy = FolderSettings::DeletePolicy::OldestAccessDate;
+                        write_settings_file();
+                    }
+                }
+            }
+            return maybe_settings;
+        }
+
+        WriteFilePointer get_own_sync_file(const Path& archives_root_dir)
+        {
+            while (true)
+            {
+                Path path = archives_root_dir / fmt::format("{}", rand());
+                std::error_code ec;
+                WriteFilePointer wp(path, Append::NO, Overwrite::NO, ec);
+                if (!ec)
+                {
+                    return wp;
+                }
+            }
+        }
+
         size_t push_success(const BinaryPackageWriteInfo& request, MessageSink& msg_sink) override
         {
             const auto& zip_path = request.zip_path.value_or_exit(VCPKG_LINE_INFO);
             const auto archive_subpath = files_archive_subpath(request.package_abi);
 
             size_t index = 0;
-            int64_t file_size = -1;
+            uint64_t file_size = m_fs.file_size(zip_path, IgnoreErrors{});
             size_t count_stored = 0;
             for (const auto& archives_root_dir : m_dirs)
             {
                 if (index >= file_cache_data.size())
                 {
-                    Optional<FolderSettings> maybe_settings;
-                    auto settings_path = archives_root_dir / "settings.json";
-                    if (m_fs.exists(settings_path, IgnoreErrors{}))
-                    {
-                        std::error_code ec;
-                        auto obj = Json::parse_file(m_fs, settings_path, ec);
-                        if (ec)
-                        {
-                            msg_sink.println_error(msgFailedToReadFile, msg::path = settings_path, msg::error_msg = ec);
-                        }
-                        else if (!obj.has_value())
-                        {
-                            msg_sink.println_error(msg::format(msgFailedToParseJson, msg::path = settings_path)
-                                                       .append_raw('\n')
-                                                       .append_raw(obj.error()->to_string()));
-                        }
-                        else
-                        {
-                            FolderSettingsDeserializer instance;
-                            Json::Reader reader;
-                            maybe_settings = reader.visit(obj.get()->value, instance);
-                            if (!reader.warnings().empty())
-                            {
-                                auto warning_message = msg::format(msgParserWarnings, msg::path = settings_path);
-                                for (auto&& warning : reader.warnings())
-                                    warning_message.append_raw('\n').append(warning);
-                                msg_sink.println_warning(warning_message);
-                            }
-                            if (maybe_settings.has_value())
-                            {
-                                Debug::println("Read settings file ", settings_path);
-                            }
-                            else
-                            {
-                                auto error_msg =
-                                    msg::format(msgFailedToParseFileCacheSettings, msg::path = settings_path);
-                                for (auto&& error : reader.errors())
-                                    error_msg.append_raw('\n').append(error);
-                                msg_sink.println_error(error_msg);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        maybe_settings.emplace();
-                        maybe_settings.get()->delete_policy =
-                            FolderSettings::DeletePolicy::OldestModificationDateUpdateOnAccess;
-                        const auto write_settings_file = [&]() {
-                            auto obj = FolderSettingsDeserializer::serialize(*maybe_settings.get());
-                            obj.insert("$schema",
-                                       "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/"
-                                       "file-cache-settings.schema.json");
-                            obj.sort_keys();
-                            std::error_code ec;
-                            m_fs.create_directories(archives_root_dir, IgnoreErrors{});
-                            m_fs.write_contents(settings_path, Json::stringify(obj), ec);
-                            if (ec)
-                            {
-                                msg::println_error(
-                                    msgFailedToWriteFile, msg::path = settings_path, msg::error_msg = ec);
-                            }
-                            return ec;
-                        };
-                        if (!write_settings_file())
-                        {
-                            using namespace std::chrono;
-                            auto old_access_time =
-                                m_fs.last_access_time_now() - duration_cast<nanoseconds>(30 * 24h).count();
-                            m_fs.last_access_time(settings_path, old_access_time, VCPKG_LINE_INFO);
-                            m_fs.read_contents(settings_path, VCPKG_LINE_INFO);
-                            if (m_fs.last_access_time(settings_path, VCPKG_LINE_INFO) > old_access_time)
-                            {
-                                maybe_settings.get()->delete_policy = FolderSettings::DeletePolicy::OldestAccessDate;
-                                write_settings_file();
-                            }
-                        }
-                    }
-
-                    file_cache_data.push_back(FileCacheData{maybe_settings.value_or({})});
+                    file_cache_data.push_back(
+                        FileCacheData{get_folder_settings(archives_root_dir, msg_sink).value_or({})});
+                    file_cache_data.back().own_sync_file = get_own_sync_file(archives_root_dir);
                     if (file_cache_data.back().folder_settings.delete_policy != FolderSettings::DeletePolicy::None)
                     {
                         auto& settings = file_cache_data.back().folder_settings;
+                        auto settings_path = archives_root_dir / "settings.json";
                         for (auto& path : m_fs.get_regular_files_recursive(archives_root_dir, IgnoreErrors{}))
                         {
                             if (path.filename() == ".DS_Store" || path == settings_path)
@@ -500,13 +520,13 @@ namespace
                 }
                 ++index;
                 auto& cache = file_cache_data.back();
+                {
+                    auto line = fmt::format("{};{}\n", request.package_abi, file_size);
+                    cache.own_sync_file.write(line.data(), 1, line.size());
+                }
                 auto& settings = cache.folder_settings;
                 if (settings.delete_policy != FolderSettings::DeletePolicy::None)
                 {
-                    if (file_size == -1)
-                    {
-                        file_size = m_fs.file_size(zip_path, IgnoreErrors{});
-                    }
                     const auto oldest_date =
                         (settings.max_age.count() ? settings.filetime_now(m_fs) - settings.max_age.count() : 0);
                     int64_t max_size_in_bytes =
@@ -579,6 +599,9 @@ namespace
                 else
                 {
                     count_stored++;
+                    auto last_time = settings.last_time(m_fs, archive_path, IgnoreErrors{});
+                    file_cache_data.back().file_data.push(FileData{archive_path, file_size, last_time});
+                    file_cache_data.back().current_size += file_size;
                 }
             }
             return count_stored;
@@ -1143,36 +1166,27 @@ namespace
         {
         }
 
-        Command command() const
+        std::string lookup_cache_entry(StringView name, const std::string& abi) const
         {
-            Command cmd;
-            cmd.string_arg("curl")
-                .string_arg("-s")
-                .string_arg("-H")
-                .string_arg("Content-Type: application/json")
-                .string_arg("-H")
-                .string_arg(m_token_header)
-                .string_arg("-H")
-                .string_arg(m_accept_header);
-            return cmd;
-        }
-
-        std::string lookup_cache_entry(const std::string& abi) const
-        {
-            auto cmd = command()
-                           .string_arg(m_url)
-                           .string_arg("-G")
-                           .string_arg("-d")
-                           .string_arg("keys=vcpkg")
-                           .string_arg("-d")
-                           .string_arg("version=" + abi);
-
-            std::vector<std::string> lines;
-            auto res = cmd_execute_and_capture_output(cmd);
-            if (!res.has_value() || res.get()->exit_code) return {};
-            auto json = Json::parse_object(res.get()->output);
-            if (!json.has_value() || !json.get()->contains("archiveLocation")) return {};
-            return json.get()->get("archiveLocation")->string(VCPKG_LINE_INFO).to_string();
+            auto url = format_url_query(m_url, std::vector<std::string>{"keys=" + name + "-" + abi, "version=" + abi});
+            auto res =
+                invoke_http_request("GET",
+                                    std::vector<std::string>{
+                                        m_content_type_header.to_string(), m_token_header, m_accept_header.to_string()},
+                                    url);
+            if (auto p = res.get())
+            {
+                auto maybe_json = Json::parse_object(*p);
+                if (auto json = maybe_json.get())
+                {
+                    auto archive_location = json->get("archiveLocation");
+                    if (archive_location && archive_location->is_string())
+                    {
+                        return archive_location->string(VCPKG_LINE_INFO).to_string();
+                    }
+                }
+            }
+            return {};
         }
 
         void acquire_zips(View<const InstallPlanAction*> actions,
@@ -1183,7 +1197,8 @@ namespace
             for (size_t idx = 0; idx < actions.size(); ++idx)
             {
                 auto&& action = *actions[idx];
-                auto url = lookup_cache_entry(action.package_abi().value_or_exit(VCPKG_LINE_INFO));
+                const auto& package_name = action.spec.name();
+                auto url = lookup_cache_entry(package_name, action.package_abi().value_or_exit(VCPKG_LINE_INFO));
                 if (url.empty()) continue;
 
                 url_paths.emplace_back(std::move(url), make_temp_archive_path(m_buildtrees, action.spec));
@@ -1209,11 +1224,11 @@ namespace
             return msg::format(msgRestoredPackagesFromGHA, msg::count = count, msg::elapsed = ElapsedTime(elapsed));
         }
 
-        static constexpr StringLiteral m_accept_header = "Accept: application/json;api-version=6.0-preview.1";
-
         Path m_buildtrees;
         std::string m_url;
         std::string m_token_header;
+        static constexpr StringLiteral m_accept_header = "Accept: application/json;api-version=6.0-preview.1";
+        static constexpr StringLiteral m_content_type_header = "Content-Type: application/json";
     };
 
     struct GHABinaryPushProvider : IWriteBinaryProvider
@@ -1223,69 +1238,71 @@ namespace
         {
         }
 
-        Command command() const
-        {
-            Command cmd;
-            cmd.string_arg("curl")
-                .string_arg("-s")
-                .string_arg("-H")
-                .string_arg("Content-Type: application/json")
-                .string_arg("-H")
-                .string_arg(m_token_header)
-                .string_arg("-H")
-                .string_arg(m_accept_header);
-            return cmd;
-        }
-
-        Optional<int64_t> reserve_cache_entry(const std::string& abi, int64_t cacheSize) const
+        Optional<int64_t> reserve_cache_entry(const std::string& name, const std::string& abi, int64_t cacheSize) const
         {
             Json::Object payload;
-            payload.insert("key", "vcpkg");
+            payload.insert("key", name + "-" + abi);
             payload.insert("version", abi);
             payload.insert("cacheSize", Json::Value::integer(cacheSize));
-            auto cmd = command().string_arg(m_url).string_arg("-d").string_arg(stringify(payload));
 
-            auto res = cmd_execute_and_capture_output(cmd);
-            if (!res.has_value() || res.get()->exit_code) return {};
-            auto json = Json::parse_object(res.get()->output);
-            if (!json.has_value() || !json.get()->contains("cacheId")) return {};
-            return json.get()->get("cacheId")->integer(VCPKG_LINE_INFO);
+            std::vector<std::string> headers;
+            headers.emplace_back(m_accept_header.data(), m_accept_header.size());
+            headers.emplace_back(m_content_type_header.data(), m_content_type_header.size());
+            headers.emplace_back(m_token_header);
+
+            auto res = invoke_http_request("POST", headers, m_url, stringify(payload));
+            if (auto p = res.get())
+            {
+                auto maybe_json = Json::parse_object(*p);
+                if (auto json = maybe_json.get())
+                {
+                    auto cache_id = json->get("cacheId");
+                    if (cache_id && cache_id->is_integer())
+                    {
+                        return cache_id->integer(VCPKG_LINE_INFO);
+                    }
+                }
+            }
+            return {};
         }
 
         size_t push_success(const BinaryPackageWriteInfo& request, MessageSink&) override
         {
             if (!request.zip_path) return 0;
+
             const auto& zip_path = *request.zip_path.get();
             const ElapsedTimer timer;
             const auto& abi = request.package_abi;
 
-            int64_t cache_size;
-            {
-                auto archive = m_fs.open_for_read(zip_path, VCPKG_LINE_INFO);
-                archive.try_seek_to(0, SEEK_END);
-                cache_size = archive.tell();
-            }
-
             size_t upload_count = 0;
-            if (auto cacheId = reserve_cache_entry(abi, cache_size))
+            auto cache_size = m_fs.file_size(zip_path, VCPKG_LINE_INFO);
+
+            if (auto cacheId = reserve_cache_entry(request.spec.name(), abi, cache_size))
             {
-                std::vector<std::string> headers{
+                std::vector<std::string> custom_headers{
                     m_token_header,
                     m_accept_header.to_string(),
                     "Content-Type: application/octet-stream",
                     "Content-Range: bytes 0-" + std::to_string(cache_size) + "/*",
                 };
                 auto url = m_url + "/" + std::to_string(*cacheId.get());
-                if (put_file(m_fs, url, {}, headers, zip_path, "PATCH"))
+
+                if (put_file(m_fs, url, {}, custom_headers, zip_path, "PATCH"))
                 {
                     Json::Object commit;
                     commit.insert("size", std::to_string(cache_size));
-                    auto cmd = command().string_arg(url).string_arg("-d").string_arg(stringify(commit));
-
-                    auto res = cmd_execute_and_capture_output(cmd);
-                    if (res.has_value() && !res.get()->exit_code)
+                    std::vector<std::string> headers;
+                    headers.emplace_back(m_accept_header.data(), m_accept_header.size());
+                    headers.emplace_back(m_content_type_header.data(), m_content_type_header.size());
+                    headers.emplace_back(m_token_header);
+                    auto res = invoke_http_request("POST", headers, url, stringify(commit));
+                    if (res)
                     {
                         ++upload_count;
+                    }
+                    else
+                    {
+                        msg::println(res.error());
                     }
                 }
             }
@@ -1295,11 +1312,11 @@ namespace
         bool needs_nuspec_data() const override { return false; }
         bool needs_zip_file() const override { return true; }
 
-        static constexpr StringLiteral m_accept_header = "Accept: application/json;api-version=6.0-preview.1";
-
         const Filesystem& m_fs;
         std::string m_url;
         std::string m_token_header;
+        static constexpr StringLiteral m_content_type_header = "Content-Type: application/json";
+        static constexpr StringLiteral m_accept_header = "Accept: application/json;api-version=6.0-preview.1";
     };
 
     struct IObjectStorageTool
