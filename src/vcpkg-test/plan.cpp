@@ -1,4 +1,4 @@
-#include <catch2/catch.hpp>
+#include <vcpkg-test/util.h>
 
 #include <vcpkg/base/graphs.h>
 
@@ -8,11 +8,9 @@
 #include <vcpkg/triplet.h>
 
 #include <memory>
-#include <unordered_map>
 #include <vector>
 
 #include <vcpkg-test/mockcmakevarprovider.h>
-#include <vcpkg-test/util.h>
 
 using namespace vcpkg;
 
@@ -459,7 +457,7 @@ TEST_CASE ("install platform dependent default features", "[plan]")
     using MBO = PlatformExpression::MultipleBinaryOperators;
     auto linux_expr = PlatformExpression::parse_platform_expression("linux", MBO::Deny).value_or_exit(VCPKG_LINE_INFO);
     spec_map.map["a"].source_control_file->core_paragraph->default_features = {
-        DependencyRequestedFeature{"1", linux_expr}};
+        DependencyRequestedFeature{"1", std::move(linux_expr)}};
 
     MapPortFileProvider map_port{spec_map.map};
     MockCMakeVarProvider var_provider;

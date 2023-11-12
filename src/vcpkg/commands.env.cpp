@@ -5,7 +5,6 @@
 #include <vcpkg/cmakevars.h>
 #include <vcpkg/commands.build.h>
 #include <vcpkg/commands.env.h>
-#include <vcpkg/commands.help.h>
 #include <vcpkg/installedpaths.h>
 #include <vcpkg/portfileprovider.h>
 #include <vcpkg/registries.h>
@@ -140,6 +139,7 @@ namespace vcpkg
 
 #if defined(_WIN32)
         Command cmd("cmd");
+        cmd.string_arg("/d");
 #else  // ^^^ _WIN32 / !_WIN32 vvv
         Command cmd("");
         Checks::msg_exit_with_message(VCPKG_LINE_INFO, msgEnvPlatformNotSupported);

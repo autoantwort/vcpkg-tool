@@ -7,9 +7,8 @@
 
 #include <vcpkg/documentation.h>
 
-#include <inttypes.h>
-
-#include <memory>
+#include <atomic>
+#include <type_traits>
 
 #include <fmt/compile.h>
 
@@ -310,8 +309,8 @@ namespace vcpkg::Json
             case ValueKind::Integer: return lhs.underlying_->integer == rhs.underlying_->integer;
             case ValueKind::Number: return lhs.underlying_->number == rhs.underlying_->number;
             case ValueKind::String: return lhs.underlying_->string == rhs.underlying_->string;
-            case ValueKind::Array: return lhs.underlying_->string == rhs.underlying_->string;
-            case ValueKind::Object: return lhs.underlying_->string == rhs.underlying_->string;
+            case ValueKind::Array: return lhs.underlying_->array == rhs.underlying_->array;
+            case ValueKind::Object: return lhs.underlying_->object == rhs.underlying_->object;
             default: Checks::unreachable(VCPKG_LINE_INFO);
         }
     }
@@ -1540,4 +1539,19 @@ namespace vcpkg::Json
     }
 
     const PackageNameDeserializer PackageNameDeserializer::instance;
+
+    LocalizedString FeatureNameDeserializer::type_name() const { return msg::format(msgAFeatureName); }
+
+    Optional<std::string> FeatureNameDeserializer::visit_string(Json::Reader& r, StringView sv) const
+    {
+        if (!IdentifierDeserializer::is_ident(sv))
+        {
+            r.add_generic_error(
+                type_name(),
+                msg::format(msgParseFeatureNameError, msg::package_name = sv, msg::url = docs::manifests_url));
+        }
+        return sv.to_string();
+    }
+
+    const FeatureNameDeserializer FeatureNameDeserializer::instance;
 }

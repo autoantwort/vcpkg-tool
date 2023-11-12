@@ -1,10 +1,9 @@
 #include <vcpkg/base/fwd/message_sinks.h>
 
 #include <vcpkg/base/checks.h>
-#include <vcpkg/base/expected.h>
 #include <vcpkg/base/files.h>
 #include <vcpkg/base/parse.h>
-#include <vcpkg/base/system.debug.h>
+#include <vcpkg/base/strings.h>
 #include <vcpkg/base/system.h>
 #include <vcpkg/base/system.process.h>
 #include <vcpkg/base/util.h>
@@ -260,7 +259,7 @@ namespace vcpkg
         {
             if (fs.exists(old_system_wide_targets_file, IgnoreErrors{}))
             {
-                const std::string param = fmt::format(R"(/c "DEL "{}" /Q > nul")", old_system_wide_targets_file);
+                const std::string param = fmt::format(R"(/d /c "DEL "{}" /Q > nul")", old_system_wide_targets_file);
                 const ElevationPromptChoice user_choice = elevated_cmd_execute(param);
                 switch (user_choice)
                 {
@@ -286,7 +285,7 @@ namespace vcpkg
         const auto sys_src_path = tmp_dir / "vcpkg.system.targets";
         fs.write_contents(sys_src_path, SystemTargetsShortcut, VCPKG_LINE_INFO);
 
-        const std::string param = fmt::format(R"(/c "mkdir "{}" & copy "{}" "{}" /Y > nul")",
+        const std::string param = fmt::format(R"(/d /c "mkdir "{}" & copy "{}" "{}" /Y > nul")",
                                               SYSTEM_WIDE_TARGETS_FILE.parent_path(),
                                               sys_src_path,
                                               SYSTEM_WIDE_TARGETS_FILE);
@@ -541,18 +540,18 @@ namespace vcpkg
         }
         else
         {
-            const Path home_path = get_environment_variable("HOME").value_or_exit(VCPKG_LINE_INFO);
-            fish_completions_path = home_path / ".config";
+            Path home_path = get_environment_variable("HOME").value_or_exit(VCPKG_LINE_INFO);
+            fish_completions_path = std::move(home_path) / ".config";
         }
 
-        fish_completions_path = fish_completions_path / "fish/completions";
+        fish_completions_path /= "fish/completions";
 
         auto& fs = paths.get_filesystem();
 
         std::error_code ec;
         fs.create_directories(fish_completions_path, ec);
 
-        fish_completions_path = fish_completions_path / "vcpkg.fish";
+        fish_completions_path /= "vcpkg.fish";
 
         if (fs.exists(fish_completions_path, IgnoreErrors{}))
         {

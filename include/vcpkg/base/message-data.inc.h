@@ -1,10 +1,11 @@
 ﻿DECLARE_MESSAGE(ABaseline, (), "", "a baseline")
 DECLARE_MESSAGE(ABaselineObject, (), "", "a baseline object")
+DECLARE_MESSAGE(ADefaultFeature, (), "", "a default feature")
 DECLARE_MESSAGE(ABoolean, (), "", "a boolean")
 DECLARE_MESSAGE(ABuiltinRegistry, (), "", "a builtin registry")
 DECLARE_MESSAGE(AConfigurationObject, (), "", "a configuration object")
 DECLARE_MESSAGE(ADependency, (), "", "a dependency")
-DECLARE_MESSAGE(ADependencyFeature, (), "", "a feature in a dependency")
+DECLARE_MESSAGE(ADependencyFeature, (), "", "a feature of a dependency")
 DECLARE_MESSAGE(ADemandObject,
                 (),
                 "'demands' are a concept in the schema of a JSON file the user can edit",
@@ -94,6 +95,7 @@ DECLARE_MESSAGE(AddVersionVersionAlreadyInFile, (msg::version, msg::path), "", "
 DECLARE_MESSAGE(AddVersionVersionIs, (msg::version), "", "version: {version}")
 DECLARE_MESSAGE(ADictionaryOfContacts, (), "", "a dictionary of contacts")
 DECLARE_MESSAGE(AFeature, (), "", "a feature")
+DECLARE_MESSAGE(AFeatureName, (), "", "a feature name")
 DECLARE_MESSAGE(AFilesystemRegistry, (), "", "a filesystem registry")
 DECLARE_MESSAGE(AGitObjectSha, (), "", "a git object SHA")
 DECLARE_MESSAGE(AGitReference, (), "", "a git reference (for example, a branch)")
@@ -124,6 +126,7 @@ DECLARE_MESSAGE(AmbiguousConfigDeleteConfigFile,
                 "configuration file {path}")
 DECLARE_MESSAGE(AnArtifactsGitRegistryUrl, (), "", "an artifacts git registry URL")
 DECLARE_MESSAGE(AnArtifactsRegistry, (), "", "an artifacts registry")
+DECLARE_MESSAGE(AnArrayOfDefaultFeatures, (), "", "an array of default features")
 DECLARE_MESSAGE(AnArrayOfDependencies, (), "", "an array of dependencies")
 DECLARE_MESSAGE(AnArrayOfDependencyOverrides, (), "", "an array of dependency overrides")
 DECLARE_MESSAGE(AnArrayOfFeatures, (), "", "an array of features")
@@ -281,10 +284,6 @@ DECLARE_MESSAGE(BaselineFileNoDefaultField,
                 (msg::commit_sha),
                 "",
                 "The baseline file at commit {commit_sha} was invalid (no \"default\" field).")
-DECLARE_MESSAGE(BaselineFileNoDefaultFieldPath,
-                (msg::path),
-                "",
-                "baseline file at {path} was invalid (no \"default\" field)")
 DECLARE_MESSAGE(BaselineGitShowFailed,
                 (msg::commit_sha),
                 "",
@@ -493,7 +492,7 @@ DECLARE_MESSAGE(CISwitchOptSkipFailures,
                 "Skips ports marked `=fail` in ci.baseline.txt")
 DECLARE_MESSAGE(CISwitchOptXUnitAll, (), "", "Reports unchanged ports in the XUnit output")
 DECLARE_MESSAGE(ClearingContents, (msg::path), "", "Clearing contents of {path}")
-DECLARE_MESSAGE(CmakeTargetsExcluded, (msg::count), "", "note: {count} additional targets are not displayed.")
+DECLARE_MESSAGE(CmakeTargetsExcluded, (msg::count), "", "{count} additional targets are not displayed.")
 DECLARE_MESSAGE(CMakeTargetsUsage,
                 (msg::package_name),
                 "'targets' are a CMake and Makefile concept",
@@ -924,18 +923,10 @@ DECLARE_MESSAGE(CouldNotDeduceNugetIdAndVersion,
                 (msg::path),
                 "",
                 "Could not deduce nuget id and version from filename: {path}")
-DECLARE_MESSAGE(CouldNotFindBaseline,
-                (msg::commit_sha, msg::path),
-                "",
-                "Could not find explicitly specified baseline `\"{commit_sha}\"` in baseline file {path}")
-DECLARE_MESSAGE(CouldNotFindBaselineForRepo,
-                (msg::commit_sha, msg::package_name),
-                "",
-                "Couldn't find baseline `\"{commit_sha}\"` for repo {package_name}")
 DECLARE_MESSAGE(CouldNotFindBaselineInCommit,
-                (msg::commit_sha, msg::package_name),
+                (msg::url, msg::commit_sha, msg::package_name),
                 "",
-                "Couldn't find baseline in commit `\"{commit_sha}\"` from repo {package_name}:")
+                "Couldn't find baseline in {url} at {commit_sha} for {package_name}.")
 DECLARE_MESSAGE(CouldNotFindGitTreeAtCommit,
                 (msg::package_name, msg::commit_sha),
                 "",
@@ -997,6 +988,16 @@ DECLARE_MESSAGE(DefaultBinaryCacheRequiresDirectory,
                 (msg::path),
                 "",
                 "Environment variable VCPKG_DEFAULT_BINARY_CACHE must be a directory (was: {path})")
+DECLARE_MESSAGE(DefaultFeatureCore,
+                (),
+                "The word \"core\" is an on-disk name that must not be localized.",
+                "the feature \"core\" turns off default features and thus can't be in the default features list")
+DECLARE_MESSAGE(
+    DefaultFeatureDefault,
+    (),
+    "The word \"default\" is an on-disk name that must not be localized.",
+    "the feature \"default\" refers to the set of default features and thus can't be in the default features list")
+DECLARE_MESSAGE(DefaultFeatureIdentifier, (), "", "the names of default features must be identifiers")
 DECLARE_MESSAGE(DefaultFlag, (msg::option), "", "Defaulting to --{option} being on.")
 DECLARE_MESSAGE(DefaultRegistryIsArtifact, (), "", "The default registry cannot be an artifact registry.")
 DECLARE_MESSAGE(
@@ -1011,6 +1012,20 @@ DECLARE_MESSAGE(DeleteVcpkgConfigFromManifest,
                 (msg::path),
                 "",
                 "-- Or remove \"vcpkg-configuration\" from the manifest file {path}.")
+DECLARE_MESSAGE(
+    DependencyFeatureCore,
+    (),
+    "The word \"core\" is an on-disk name that must not be localized. The \"default-features\" part is JSON "
+    "syntax that must be copied verbatim into the user's file.",
+    "the feature \"core\" cannot be in a dependency's feature list. To turn off default features, add "
+    "\"default-features\": false instead.")
+DECLARE_MESSAGE(
+    DependencyFeatureDefault,
+    (),
+    "The word \"default\" is an on-disk name that must not be localized. The \"default-features\" part is JSON "
+    "syntax that must be copied verbatim into the user's file.",
+    "the feature \"default\" cannot be in a dependency's feature list. To turn on default features, add "
+    "\"default-features\": true instead.")
 DECLARE_MESSAGE(DependencyGraphCalculation, (), "", "Dependency graph submission enabled.")
 DECLARE_MESSAGE(DependencyGraphFailure, (), "", "Dependency graph submission failed.")
 DECLARE_MESSAGE(DependencyGraphSuccess, (), "", "Dependency graph submission successful.")
@@ -1106,12 +1121,6 @@ DECLARE_MESSAGE(ErrorInvalidManifestModeOption,
                 (msg::option),
                 "",
                 "The option --{option} is not supported in manifest mode.")
-DECLARE_MESSAGE(ErrorMessage, (), "", "error: ")
-DECLARE_MESSAGE(
-    ErrorMessageMustUsePrintError,
-    (msg::value),
-    "{value} is is a localized message name like ErrorMessageMustUsePrintError",
-    "The message named {value} starts with error:, it must be changed to prepend ErrorMessage in code instead.")
 DECLARE_MESSAGE(
     ErrorMissingVcpkgRoot,
     (),
@@ -1243,11 +1252,7 @@ DECLARE_MESSAGE(FailedToDetermineArchitecture,
 DECLARE_MESSAGE(FailedToDetermineCurrentCommit, (), "", "Failed to determine the current commit:")
 DECLARE_MESSAGE(FailedToDownloadFromMirrorSet, (), "", "Failed to download from mirror set")
 DECLARE_MESSAGE(FailedToExtract, (msg::path), "", "Failed to extract \"{path}\":")
-DECLARE_MESSAGE(FailedToFetchError,
-                (msg::error_msg, msg::package_name),
-                "",
-                "{error_msg}\nFailed to fetch {package_name}:")
-DECLARE_MESSAGE(FailedToFindBaseline, (), "", "Failed to find baseline.json")
+DECLARE_MESSAGE(FailedToFetchRepo, (msg::url), "", "Failed to fetch {url}.")
 DECLARE_MESSAGE(FailedToFindPortFeature,
                 (msg::feature, msg::package_name),
                 "",
@@ -1385,22 +1390,6 @@ DECLARE_MESSAGE(ForMoreHelp,
                 "For More Help")
 DECLARE_MESSAGE(GeneratedConfiguration, (msg::path), "", "Generated configuration {path}.")
 DECLARE_MESSAGE(GeneratedInstaller, (msg::path), "", "{path} installer generated.")
-DECLARE_MESSAGE(GenerateMsgErrorParsingFormatArgs,
-                (msg::value),
-                "example of {value} 'GenerateMsgNoComment'",
-                "parsing format string for {value}:")
-DECLARE_MESSAGE(GenerateMsgIncorrectComment,
-                (msg::value),
-                "example of {value} is 'GenerateMsgNoComment'",
-                R"(message {value} has an incorrect comment:)")
-DECLARE_MESSAGE(GenerateMsgNoArgumentValue,
-                (msg::value),
-                "example of {value} is 'arch'",
-                R"({{{value}}} was specified in a comment, but was not used in the message.)")
-DECLARE_MESSAGE(GenerateMsgNoCommentValue,
-                (msg::value),
-                "example of {value} is 'arch'",
-                R"({{{value}}} was used in the message, but not commented.)")
 DECLARE_MESSAGE(GeneratingConfiguration, (msg::path), "", "Generating configuration {path}...")
 DECLARE_MESSAGE(GeneratingInstaller, (msg::path), "", "Generating installer {path}...")
 DECLARE_MESSAGE(GeneratingRepo, (msg::path), "", "Generating repository {path}...")
@@ -1416,12 +1405,12 @@ DECLARE_MESSAGE(GitFailedToFetch,
                 "{value} is a git ref like 'origin/main'",
                 "failed to fetch ref {value} from repository {url}")
 DECLARE_MESSAGE(GitFailedToInitializeLocalRepository, (msg::path), "", "failed to initialize local repository {path}")
-DECLARE_MESSAGE(GitRegistryMustHaveBaseline,
-                (msg::package_name, msg::value),
-                "{value} is a commit sha",
-                "The git registry entry for \"{package_name}\" must have a \"baseline\" field that is a valid git "
-                "commit SHA (40 hexadecimal characters).\n"
-                "The current HEAD of that repo is \"{value}\".")
+DECLARE_MESSAGE(
+    GitRegistryMustHaveBaseline,
+    (msg::url, msg::commit_sha),
+    "",
+    "The git registry \"{url}\" must have a \"baseline\" field that is a valid git commit SHA (40 hexadecimal "
+    "characters).\nTo use the current latest versions, set baseline to that repo's HEAD, \"{commit_sha}\".")
 DECLARE_MESSAGE(GitStatusOutputExpectedFileName, (), "", "expected a file name")
 DECLARE_MESSAGE(GitStatusOutputExpectedNewLine, (), "", "expected new line")
 DECLARE_MESSAGE(GitStatusOutputExpectedRenameOrNewline, (), "", "expected renamed file or new lines")
@@ -1837,7 +1826,6 @@ DECLARE_MESSAGE(InternalCICommand,
                 (),
                 "",
                 "vcpkg ci is an internal command which will change incompatibly or be removed at any time.")
-DECLARE_MESSAGE(InternalErrorMessage, (), "", "internal error: ")
 DECLARE_MESSAGE(
     InternalErrorMessageContact,
     (),
@@ -1941,10 +1929,6 @@ DECLARE_MESSAGE(InvalidCommentStyle,
                 "comments.")
 DECLARE_MESSAGE(InvalidCommitId, (msg::commit_sha), "", "Invalid commit id: {commit_sha}")
 DECLARE_MESSAGE(InvalidDefaultFeatureName, (), "", "'default' is a reserved feature name")
-DECLARE_MESSAGE(InvalidDependency,
-                (),
-                "",
-                "dependencies must be lowercase alphanumeric+hyphens, and not one of the reserved names")
 DECLARE_MESSAGE(InvalidFeature,
                 (),
                 "",
@@ -2088,17 +2072,6 @@ DECLARE_MESSAGE(LoadingOverlayTriplet,
                 (msg::path),
                 "'-- [OVERLAY]' at the beginning must be preserved",
                 "-- [OVERLAY] Loading triplet configuration from: {path}")
-DECLARE_MESSAGE(LocalizedMessageMustNotContainIndents,
-                (msg::value),
-                "{value} is is a localized message name like LocalizedMessageMustNotContainIndents. "
-                "The 'LocalizedString::append_indent' part is locale-invariant.",
-                "The message named {value} contains what appears to be indenting which must be "
-                "changed to use LocalizedString::append_indent instead.")
-DECLARE_MESSAGE(LocalizedMessageMustNotEndWithNewline,
-                (msg::value),
-                "{value} is a localized message name like LocalizedMessageMustNotEndWithNewline",
-                "The message named {value} ends with a newline which should be added by formatting "
-                "rather than by localization.")
 DECLARE_MESSAGE(LocalPortfileVersion,
                 (),
                 "",
@@ -2231,7 +2204,6 @@ DECLARE_MESSAGE(NonZeroRemainingArgs,
                 "the command '{command_name}' does not accept any additional arguments")
 DECLARE_MESSAGE(NoOutdatedPackages, (), "", "There are no outdated packages.")
 DECLARE_MESSAGE(NoRegistryForPort, (msg::package_name), "", "no registry configured for port {package_name}")
-DECLARE_MESSAGE(NoteMessage, (), "", "note: ")
 DECLARE_MESSAGE(NoUrlsAndHashSpecified, (msg::sha), "", "No urls specified to download SHA: {sha}")
 DECLARE_MESSAGE(NoUrlsAndNoHashSpecified, (), "", "No urls specified and no hash specified.")
 DECLARE_MESSAGE(NugetOutputNotCapturedBecauseInteractiveSpecified,
@@ -2315,22 +2287,29 @@ DECLARE_MESSAGE(ParseControlErrorInfoWhileLoading,
                 "Error messages are is printed after this.",
                 "while loading {path}:")
 DECLARE_MESSAGE(ParseControlErrorInfoWrongTypeFields, (), "", "The following fields had the wrong types:")
+DECLARE_MESSAGE(
+    ParseFeatureNameError,
+    (msg::package_name, msg::url),
+    "",
+    "\"{package_name}\" is not a valid feature name. "
+    "Feature names must be lowercase alphanumeric+hypens and not reserved (see {url} for more information).")
 DECLARE_MESSAGE(ParseIdentifierError,
                 (msg::value, msg::url),
                 "{value} is a lowercase identifier like 'boost'",
                 "\"{value}\" is not a valid identifier. "
-                "Identifiers must be lowercase alphanumeric+hypens and not reserved (see {url} for more information)")
-DECLARE_MESSAGE(ParsePackageNameError,
-                (msg::package_name, msg::url),
-                "",
-                "\"{package_name}\" is not a valid package name. "
-                "Package names must be lowercase alphanumeric+hypens and not reserved (see {url} for more information)")
+                "Identifiers must be lowercase alphanumeric+hypens and not reserved (see {url} for more information).")
+DECLARE_MESSAGE(
+    ParsePackageNameError,
+    (msg::package_name, msg::url),
+    "",
+    "\"{package_name}\" is not a valid package name. "
+    "Package names must be lowercase alphanumeric+hypens and not reserved (see {url} for more information).")
 DECLARE_MESSAGE(ParsePackagePatternError,
                 (msg::package_name, msg::url),
                 "",
                 "\"{package_name}\" is not a valid package pattern. "
                 "Package patterns must use only one wildcard character (*) and it must be the last character in "
-                "the pattern (see {url} for more information)")
+                "the pattern (see {url} for more information).")
 DECLARE_MESSAGE(ParserWarnings, (msg::path), "", "The following warnings were generated while parsing {path}:")
 DECLARE_MESSAGE(PathMustBeAbsolute,
                 (msg::path),
@@ -2343,11 +2322,11 @@ DECLARE_MESSAGE(PECoffHeaderTooShort,
 DECLARE_MESSAGE(PEConfigCrossesSectionBoundary,
                 (msg::path),
                 "Portable executable is a term-of-art, see https://learn.microsoft.com/windows/win32/debug/pe-format",
-                "While parsing Portable Executable {path}, image config directory crosses a secion boundary.")
+                "While parsing Portable Executable {path}, image config directory crosses a section boundary.")
 DECLARE_MESSAGE(PEImportCrossesSectionBoundary,
                 (msg::path),
                 "Portable executable is a term-of-art, see https://learn.microsoft.com/windows/win32/debug/pe-format",
-                "While parsing Portable Executable {path}, import table crosses a secion boundary.")
+                "While parsing Portable Executable {path}, import table crosses a section boundary.")
 DECLARE_MESSAGE(PEPlusTagInvalid,
                 (msg::path),
                 "Portable executable is a term-of-art, see https://learn.microsoft.com/windows/win32/debug/pe-format",
@@ -2531,14 +2510,14 @@ DECLARE_MESSAGE(PortNotInBaseline,
 DECLARE_MESSAGE(PortsAdded, (msg::count), "", "The following {count} ports were added:")
 DECLARE_MESSAGE(PortsDiffHelp, (), "", "The argument should be a branch/tag/hash to checkout.")
 DECLARE_MESSAGE(PortDoesNotExist, (msg::package_name), "", "{package_name} does not exist")
-DECLARE_MESSAGE(PortMissingManifest,
-                (msg::package_name, msg::path),
+DECLARE_MESSAGE(PortMissingManifest2,
+                (msg::package_name),
                 "",
-                "{package_name} has no vcpkg.json or CONTROL file in {path}")
+                "{package_name} port manifest missing (no vcpkg.json or CONTROL file)")
 DECLARE_MESSAGE(PortNotSupported, (msg::package_name, msg::triplet), "", "{package_name} is not supported on {triplet}")
 DECLARE_MESSAGE(PortsNoDiff, (), "", "There were no changes in the ports between the two commits.")
 DECLARE_MESSAGE(PortsRemoved, (msg::count), "", "The following {count} ports were removed:")
-DECLARE_MESSAGE(PortsUpdated, (msg::count), "", "\nThe following {count} ports were updated:")
+DECLARE_MESSAGE(PortsUpdated, (msg::count), "", "The following {count} ports were updated:")
 DECLARE_MESSAGE(PortSupportsField, (msg::supports_expression), "", "(supports: \"{supports_expression}\")")
 DECLARE_MESSAGE(PortVersionConflict, (), "", "The following packages differ from their port versions:")
 DECLARE_MESSAGE(PortVersionMultipleSpecification,
@@ -2923,11 +2902,12 @@ DECLARE_MESSAGE(UpdateBaselineUpdatedBaseline,
                 (msg::url, msg::old_value, msg::new_value),
                 "example of {old_value}, {new_value} is '5507daa796359fe8d45418e694328e878ac2b82f'",
                 "updated registry '{url}': baseline '{old_value}' -> '{new_value}'")
-DECLARE_MESSAGE(UpgradeInManifest,
-                (),
-                "",
-                "The upgrade command does not currently support manifest mode. Instead, modify your vcpkg.json and "
-                "run install.")
+DECLARE_MESSAGE(
+    UpgradeInManifest,
+    (),
+    "'vcpkg x-update-baseline' and 'vcpkg install' are command lines and should not be localized.",
+    "Upgrade upgrades a classic mode installation and thus does not support manifest mode. Consider updating your "
+    "dependencies by updating your baseline to a current value with vcpkg x-update-baseline and running vcpkg install.")
 DECLARE_MESSAGE(
     UpgradeRunWithNoDryRun,
     (),
@@ -3162,26 +3142,23 @@ DECLARE_MESSAGE(VersionSpecMismatch,
                 "Failed to load port because versions are inconsistent. The file \"{path}\" contains the version "
                 "{actual_version}, but the version database indicates that it should be {expected_version}.")
 DECLARE_MESSAGE(VersionTableHeader, (), "", "Version")
-DECLARE_MESSAGE(VersionVerifiedOK, (msg::version_spec, msg::commit_sha), "", "OK: {version_spec} -> {commit_sha}")
+DECLARE_MESSAGE(VersionVerifiedOK,
+                (msg::version_spec, msg::git_tree_sha),
+                "",
+                "{version_spec} is correctly in the version database ({git_tree_sha})")
 DECLARE_MESSAGE(VSExaminedInstances, (), "", "The following Visual Studio instances were considered:")
 DECLARE_MESSAGE(VSExaminedPaths, (), "", "The following paths were examined for Visual Studio instances:")
 DECLARE_MESSAGE(VSNoInstances, (), "", "Could not locate a complete Visual Studio instance")
 DECLARE_MESSAGE(WaitingForChildrenToExit, (), "", "Waiting for child processes to exit...")
 DECLARE_MESSAGE(WaitingToTakeFilesystemLock, (msg::path), "", "waiting to take filesystem lock on {path}...")
 DECLARE_MESSAGE(WaitUntilPackagesUploaded, (msg::count), "", "Wait until the remaining packages ({count}) are uploaded")
-DECLARE_MESSAGE(WarningMessage, (), "", "warning: ")
-DECLARE_MESSAGE(WarningMessageMustUsePrintWarning,
-                (msg::value),
-                "{value} is is a localized message name like WarningMessageMustUsePrintWarning",
-                "The message named {value} starts with warning:, it must be changed to prepend "
-                "WarningMessage in code instead.")
 DECLARE_MESSAGE(WarningsTreatedAsErrors, (), "", "previous warnings being interpreted as errors")
 DECLARE_MESSAGE(WarnOnParseConfig, (msg::path), "", "Found the following warnings in configuration {path}:")
 DECLARE_MESSAGE(WhileCheckingOutBaseline, (msg::commit_sha), "", "while checking out baseline {commit_sha}")
 DECLARE_MESSAGE(WhileCheckingOutPortTreeIsh,
-                (msg::package_name, msg::commit_sha),
+                (msg::package_name, msg::git_tree_sha),
                 "",
-                "while checking out port {package_name} with git tree {commit_sha}")
+                "while checking out port {package_name} with git tree {git_tree_sha}")
 DECLARE_MESSAGE(WhileGettingLocalTreeIshObjectsForPorts, (), "", "while getting local treeish objects for ports")
 DECLARE_MESSAGE(WhileLoadingLocalPort, (msg::package_name), "", "while attempting to load local port {package_name}")
 DECLARE_MESSAGE(WhileLoadingPortFromGitTree, (msg::commit_sha), "", "while trying to load port from: {commit_sha}")

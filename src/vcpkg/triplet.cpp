@@ -3,7 +3,6 @@
 #include <vcpkg/base/util.h>
 
 #include <vcpkg/input.h>
-#include <vcpkg/packagespec.h>
 #include <vcpkg/triplet.h>
 #include <vcpkg/vcpkgcmdarguments.h>
 
@@ -92,6 +91,10 @@ namespace vcpkg
         {
             return CPUArchitecture::LOONGARCH64;
         }
+        if (Strings::starts_with(this->canonical_name(), "mips64-"))
+        {
+            return CPUArchitecture::MIPS64;
+        }
 
         return nullopt;
     }
@@ -159,7 +162,7 @@ namespace vcpkg
         return is_valid_triplet_canonical_name(Strings::ascii_to_lowercase(name));
     }
 
-    bool TripletDatabase ::is_valid_triplet_canonical_name(StringView name) const
+    bool TripletDatabase::is_valid_triplet_canonical_name(StringView name) const
     {
         return Util::any_of(available_triplets, [=](const TripletFile& tf) { return tf.name == name; });
     }

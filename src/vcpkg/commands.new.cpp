@@ -1,11 +1,11 @@
 #include <vcpkg/base/checks.h>
 #include <vcpkg/base/files.h>
+#include <vcpkg/base/jsonreader.h>
 #include <vcpkg/base/util.h>
 
 #include <vcpkg/commands.new.h>
 #include <vcpkg/configuration.h>
 #include <vcpkg/registries.h>
-#include <vcpkg/tools.h>
 #include <vcpkg/vcpkgcmdarguments.h>
 #include <vcpkg/vcpkgpaths.h>
 #include <vcpkg/versions.h>
@@ -75,6 +75,13 @@ namespace vcpkg
             if (name->empty())
             {
                 return msg::format_error(msgNewNameCannotBeEmpty);
+            }
+
+            if (!Json::IdentifierDeserializer::is_ident(*name))
+            {
+                return msg::format_error(msgParseIdentifierError,
+                                         msg::value = *name,
+                                         msg::url = "https://learn.microsoft.com/vcpkg/commands/new");
             }
 
             manifest.insert("name", *name);
