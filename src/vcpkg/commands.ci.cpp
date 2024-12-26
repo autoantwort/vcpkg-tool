@@ -5,6 +5,8 @@
 #include <vcpkg/base/span.h>
 #include <vcpkg/base/strings.h>
 #include <vcpkg/base/stringview.h>
+#include <vcpkg/base/system.h>
+#include <vcpkg/base/system.process.h>
 #include <vcpkg/base/util.h>
 
 #include <vcpkg/binarycaching.h>
@@ -61,10 +63,35 @@ namespace
             }
             else
             {
+                /*
+                 curl -L \
+                      -X POST \
+                      -H "Accept: application/vnd.github+json" \
+                      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                      -H "X-GitHub-Api-Version: 2022-11-28" \
+                      https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts \
+                      -F "name=${ARTIFACT_NAME}" \
+                      -F "artifact=@${ARTIFACT_PATH}"
+                    */
+                Command cmd{"curl"};
+                cmd.string_arg("-L");
+                cmd.string_arg("-X").string_arg("POST");
+                cmd.string_arg("-H").string_arg("Accept: application/vnd.github+json");
+                cmd.string_arg("-H").string_arg(Strings::concat(
+                    "Authorization: Bearer ", get_environment_variable("GITHUB_TOKEN").value_or_exit(VCPKG_LINE_INFO)));
+                cmd.string_arg("-H").string_arg("X-GitHub-Api-Version: 2022-11-28");
+                cmd.string_arg(
+                    fmt::format("https://api.github.com/repos/{}/actions/artifacts",
+                                get_environment_variable("GITHUB_REPOSITORY").value_or_exit(VCPKG_LINE_INFO)));
+
                 for (const Path& p : children)
                 {
                     filesystem.copy_file(
                         p, target_path / p.filename(), CopyOptions::overwrite_existing, VCPKG_LINE_INFO);
+                    Command c = cmd;
+                    c.string_arg("-F").string_arg(fmt::format("name={}", p.filename()));
+                    c.string_arg("-F").string_arg(fmt::format("artifact=@{}", p.generic_u8string()));
+                    flatten_out(cmd_execute_and_capture_output(c), "curl").value_or_exit(VCPKG_LINE_INFO);
                 }
             }
         }
