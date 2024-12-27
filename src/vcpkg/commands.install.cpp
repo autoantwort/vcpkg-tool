@@ -1060,6 +1060,21 @@ namespace vcpkg
 
         if (auto p = paths.get_manifest().get())
         {
+            Command cmd{"curl"};
+            cmd.string_arg("-L");
+            cmd.string_arg("-X").string_arg("POST");
+            cmd.string_arg("-H").string_arg("Accept: application/vnd.github+json");
+            cmd.string_arg("-H").string_arg(Strings::concat(
+                "Authorization: Bearer ", get_environment_variable("GITHUB_TOKEN").value_or_exit(VCPKG_LINE_INFO)));
+            cmd.string_arg("-H").string_arg("X-GitHub-Api-Version: 2022-11-28");
+            cmd.string_arg(fmt::format("https://api.github.com/repos/{}/actions/artifacts",
+                                       get_environment_variable("GITHUB_REPOSITORY").value_or_exit(VCPKG_LINE_INFO)));
+
+            Command c = cmd;
+            c.string_arg("-F").string_arg(fmt::format("name={}", "re"));
+            c.string_arg("-F").string_arg(fmt::format("artifact=@{}", paths.get_manifest().get()->path));
+            flatten_out(cmd_execute_and_capture_output(c), "curl").value_or_exit(VCPKG_LINE_INFO);
+
             bool failure = false;
             if (!options.command_arguments.empty())
             {
