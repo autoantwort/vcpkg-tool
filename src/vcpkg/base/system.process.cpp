@@ -1790,9 +1790,7 @@ namespace vcpkg
                    env,
                    encoding,
                    stdin_content)
-            .map([&](int exit_code) {
-                return ExitCodeAndOutput{exit_code, std::move(output)};
-            });
+            .map([&](int exit_code) { return ExitCodeAndOutput{exit_code, std::move(output)}; });
     }
 
     uint64_t get_subproccess_stats() { return g_subprocess_stats.load(); }
