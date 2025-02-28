@@ -2166,11 +2166,20 @@ namespace vcpkg
         m_config.read.push_back(std::move(provider));
     }
 
-    std::vector<CacheAvailability> ReadOnlyBinaryCache::precheck(View<InstallPlanAction> actions)
+    void ReadOnlyBinaryCache::mark_all_unrestored()
+    {
+        for (auto& entry : m_status)
+        {
+            entry.second.mark_unrestored();
+        }
+    }
+
+    std::vector<CacheAvailability> ReadOnlyBinaryCache::precheck(View<const InstallPlanAction*> actions)
     {
         std::vector<CacheStatus*> statuses = Util::fmap(actions, [this](const auto& action) {
-            if (!action.package_abi()) Checks::unreachable(VCPKG_LINE_INFO);
-            return &m_status[*action.package_abi().get()];
+            Checks::check_exit(VCPKG_LINE_INFO, action && action->package_abi());
+            ASSUME(action);
+            return &m_status[*action->package_abi().get()];
         });
 
         std::vector<const InstallPlanAction*> action_ptrs;
@@ -2185,7 +2194,7 @@ namespace vcpkg
             {
                 if (statuses[i]->should_attempt_precheck(provider.get()))
                 {
-                    action_ptrs.push_back(&actions[i]);
+                    action_ptrs.push_back(actions[i]);
                     cache_result.push_back(CacheAvailability::unknown);
                     indexes.push_back(i);
                 }
@@ -2527,6 +2536,15 @@ namespace vcpkg
                         generate_nuspec(request.package_dir, action, m_config.nuget_prefix, m_config.nuget_repo);
                 }
 
+                // With x-test-features ports gets build multiple times and the packages folder gets deleted
+                // when building a package, so we "save" the folder from this deletion so we can upload its content
+                const auto& package_dir = request.package_dir;
+                static int counter = 0;
+                Path new_packaged_dir = package_dir + "_push_" + std::to_string(++counter);
+                m_fs.remove_all(new_packaged_dir, VCPKG_LINE_INFO);
+                m_fs.rename(package_dir, new_packaged_dir, VCPKG_LINE_INFO);
+                request.package_dir = new_packaged_dir;
+
                 m_synchronizer.add_submitted();
                 msg::println(msg::format(
                     msgSubmittingBinaryCacheBackground, msg::spec = action.spec, msg::count = m_config.write.size()));
@@ -2670,6 +2688,14 @@ namespace vcpkg
             case CacheStatusState::available: m_status = CacheStatusState::restored; break;
             case CacheStatusState::restored: break;
             default: Checks::unreachable(VCPKG_LINE_INFO);
+        }
+    }
+
+    void CacheStatus::mark_unrestored() noexcept
+    {
+        if (m_status == CacheStatusState::restored)
+        {
+            m_status = CacheStatusState::available;
         }
     }
 
